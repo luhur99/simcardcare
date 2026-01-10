@@ -257,7 +257,6 @@ export default function Home() {
                     <TableRow>
                       <TableHead>Status</TableHead>
                       <TableHead>No SIM Card</TableHead>
-                      <TableHead>ICCID</TableHead>
                       <TableHead>IMEI</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Paket</TableHead>
@@ -280,9 +279,6 @@ export default function Home() {
                               <Smartphone className="h-4 w-4 text-muted-foreground" />
                               <span>{sim.phone_number}</span>
                             </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm text-muted-foreground">
-                            {sim.iccid || "-"}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
