@@ -184,7 +184,7 @@ export default function SimCardsPage() {
 
       try {
         // Extract data with various possible column names
-        const phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
+        let phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
         const iccid = String(row["ICCID"] || "").trim();
         const provider = String(row["Provider"] || row["Operator"] || "").trim();
         const packageName = String(row["Package"] || row["Paket"] || "").trim();
