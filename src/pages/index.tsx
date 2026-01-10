@@ -3,6 +3,7 @@ import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
+import Link from "next/link";
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -138,7 +139,7 @@ export default function Home() {
                 Navigate to different sections of the system:
               </p>
               <div className="grid gap-2 md:grid-cols-2">
-                <a 
+                <Link 
                   href="/sim-cards" 
                   className="p-4 border rounded-lg hover:bg-accent transition-colors"
                 >
@@ -146,8 +147,8 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">
                     Manage your SIM card inventory
                   </div>
-                </a>
-                <a 
+                </Link>
+                <Link 
                   href="/devices" 
                   className="p-4 border rounded-lg hover:bg-accent transition-colors"
                 >
@@ -155,8 +156,8 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">
                     Track device assignments
                   </div>
-                </a>
-                <a 
+                </Link>
+                <Link 
                   href="/customers" 
                   className="p-4 border rounded-lg hover:bg-accent transition-colors"
                 >
@@ -164,8 +165,8 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">
                     Manage customer information
                   </div>
-                </a>
-                <a 
+                </Link>
+                <Link 
                   href="/history" 
                   className="p-4 border rounded-lg hover:bg-accent transition-colors"
                 >
@@ -173,7 +174,7 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">
                     View transaction history
                   </div>
-                </a>
+                </Link>
               </div>
             </div>
           </CardContent>
