@@ -149,6 +149,7 @@ export default function ExecutiveSummary() {
       
       // Prepare CSV data
       const headers = [
+        "No SIM Card",
         "ICCID",
         "Phone Number",
         "Status",
@@ -162,6 +163,7 @@ export default function ExecutiveSummary() {
       const csvRows = [
         headers.join(","),
         ...allLeakageSims.map(sim => [
+          sim.phoneNumber || "N/A",
           sim.iccid,
           sim.phoneNumber || "N/A",
           sim.status,
@@ -323,8 +325,8 @@ export default function ExecutiveSummary() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
+                      <TableHead>No SIM Card</TableHead>
                       <TableHead>ICCID</TableHead>
-                      <TableHead>Phone Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead className="text-right">Days</TableHead>
@@ -337,8 +339,8 @@ export default function ExecutiveSummary() {
                     {metrics.topLeakageSims.map((sim, index) => (
                       <TableRow key={sim.iccid}>
                         <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-mono text-sm">{sim.iccid}</TableCell>
                         <TableCell>{sim.phoneNumber || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">{sim.iccid}</TableCell>
                         <TableCell>
                           <Badge 
                             variant={

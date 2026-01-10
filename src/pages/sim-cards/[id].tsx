@@ -107,7 +107,7 @@ export default function SimCardDetailPage() {
 
   return (
     <Layout>
-      <SEO title={`Detail SIM ${simCard.phone_number || simCard.iccid}`} />
+      <SEO title={`Detail SIM ${simCard.phone_number}`} />
       
       <div className="space-y-6">
         {/* Header */}
@@ -121,7 +121,7 @@ export default function SimCardDetailPage() {
             <div>
               <h1 className="text-3xl font-bold">Detail SIM Card</h1>
               <p className="text-muted-foreground">
-                {simCard.phone_number || simCard.iccid}
+                {simCard.phone_number}
               </p>
             </div>
           </div>
@@ -140,12 +140,12 @@ export default function SimCardDetailPage() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">ICCID</p>
-              <p className="font-medium">{simCard.iccid}</p>
+              <p className="text-sm text-muted-foreground">Nomor Telepon</p>
+              <p className="font-medium">{simCard.phone_number}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Nomor Telepon</p>
-              <p className="font-medium">{simCard.phone_number || "-"}</p>
+              <p className="text-sm text-muted-foreground">ICCID</p>
+              <p className="font-medium">{simCard.iccid || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Provider</p>

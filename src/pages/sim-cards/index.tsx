@@ -54,8 +54,8 @@ export default function SimCardsPage() {
 
   // Form State
   const [formData, setFormData] = useState({
-    iccid: "",
     phone_number: "",
+    iccid: "",
     provider: "",
     plan_name: "",
     status: "WAREHOUSE" as SimStatus,
@@ -89,8 +89,8 @@ export default function SimCardsPage() {
 
     if (searchQuery) {
       filtered = filtered.filter(sim =>
-        sim.iccid.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sim.phone_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sim.phone_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sim.iccid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         sim.provider.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -104,9 +104,14 @@ export default function SimCardsPage() {
 
   const handleAddSimCard = async () => {
     try {
+      if (!formData.phone_number || !formData.provider) {
+        alert("Nomor SIM Card dan Provider wajib diisi!");
+        return;
+      }
+
       const newSim = {
-        iccid: formData.iccid,
-        phone_number: formData.phone_number || null,
+        phone_number: formData.phone_number,
+        iccid: formData.iccid || null,
         provider: formData.provider,
         plan_name: formData.plan_name || null,
         status: formData.status,
@@ -133,8 +138,8 @@ export default function SimCardsPage() {
 
   const resetForm = () => {
     setFormData({
-      iccid: "",
       phone_number: "",
+      iccid: "",
       provider: "",
       plan_name: "",
       status: "WAREHOUSE",
@@ -188,23 +193,23 @@ export default function SimCardsPage() {
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="iccid">ICCID *</Label>
-                    <Input
-                      id="iccid"
-                      placeholder="89620012345678901234"
-                      value={formData.iccid}
-                      onChange={(e) => setFormData({...formData, iccid: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="phone_number">Phone Number</Label>
+                    <Label htmlFor="phone_number">No SIM Card *</Label>
                     <Input
                       id="phone_number"
                       placeholder="081234567890"
                       value={formData.phone_number}
                       onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="iccid">ICCID (Opsional)</Label>
+                    <Input
+                      id="iccid"
+                      placeholder="89620012345678901234"
+                      value={formData.iccid}
+                      onChange={(e) => setFormData({...formData, iccid: e.target.value})}
                     />
                   </div>
                 </div>
@@ -309,7 +314,7 @@ export default function SimCardsPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by ICCID, phone number, or provider..."
+                    placeholder="Search by phone number, ICCID, or provider..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"
@@ -366,8 +371,8 @@ export default function SimCardsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>No SIM Card</TableHead>
                       <TableHead>ICCID</TableHead>
-                      <TableHead>Phone Number</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
@@ -380,10 +385,12 @@ export default function SimCardsPage() {
                   <TableBody>
                     {filteredSims.map((sim) => (
                       <TableRow key={sim.id}>
-                        <TableCell className="font-mono text-sm">
-                          {sim.iccid}
+                        <TableCell className="font-mono text-sm font-medium">
+                          {sim.phone_number}
                         </TableCell>
-                        <TableCell>{sim.phone_number || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {sim.iccid || "-"}
+                        </TableCell>
                         <TableCell>{sim.provider}</TableCell>
                         <TableCell>{sim.plan_name || "-"}</TableCell>
                         <TableCell>

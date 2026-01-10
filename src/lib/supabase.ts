@@ -20,8 +20,8 @@ export type SimStatus =
 
 export interface SimCard {
   id: string;
-  iccid: string;
-  phone_number: string | null;
+  iccid: string | null;
+  phone_number: string;
   provider: string;
   plan_name: string | null;
   status: SimStatus;

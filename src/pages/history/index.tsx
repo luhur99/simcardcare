@@ -118,17 +118,17 @@ export default function HistoryPage() {
   const applyFilters = () => {
     let filtered = [...history];
 
-    // Search filter (ICCID, phone number, reason)
+    // Search filter (phone number, ICCID, reason)
     if (searchTerm) {
       filtered = filtered.filter((record) => {
-        const iccid = record.sim_cards?.iccid || "";
         const phone = record.sim_cards?.phone_number || "";
+        const iccid = record.sim_cards?.iccid || "";
         const reason = record.reason || "";
         const searchLower = searchTerm.toLowerCase();
         
         return (
-          iccid.toLowerCase().includes(searchLower) ||
           phone.toLowerCase().includes(searchLower) ||
+          iccid.toLowerCase().includes(searchLower) ||
           reason.toLowerCase().includes(searchLower)
         );
       });
@@ -169,6 +169,7 @@ export default function HistoryPage() {
   const exportToCSV = () => {
     const headers = [
       "Timestamp",
+      "No SIM Card",
       "ICCID",
       "Phone Number",
       "Provider",
@@ -180,6 +181,7 @@ export default function HistoryPage() {
 
     const rows = filteredHistory.map((record) => [
       formatDate(record.changed_at),
+      record.sim_cards?.phone_number || "-",
       record.sim_cards?.iccid || "-",
       record.sim_cards?.phone_number || "-",
       record.sim_cards?.provider || "-",
@@ -247,7 +249,7 @@ export default function HistoryPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search ICCID, phone, or reason..."
+                  placeholder="Search phone number, ICCID, or reason..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -336,12 +338,12 @@ export default function HistoryPage() {
                         
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-mono text-sm">
-                              {record.sim_cards?.iccid || "-"}
+                            <span className="font-medium">
+                              {record.sim_cards?.phone_number || "-"}
                             </span>
-                            {record.sim_cards?.phone_number && (
-                              <span className="text-xs text-muted-foreground">
-                                {record.sim_cards.phone_number}
+                            {record.sim_cards?.iccid && (
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {record.sim_cards.iccid}
                               </span>
                             )}
                           </div>

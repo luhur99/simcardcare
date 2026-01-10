@@ -92,7 +92,7 @@ const MOCK_SIMS: SimCard[] = [
   },
   {
     id: "3",
-    iccid: "89620055555555555555",
+    iccid: null,
     phone_number: "081555555555",
     provider: "Indosat",
     plan_name: "Freedom Combo",
@@ -106,7 +106,7 @@ const MOCK_SIMS: SimCard[] = [
     accumulated_cost: 95666.67,
     is_reactivated: false,
     replacement_reason: null,
-    notes: "Deactivated card with full overlap calculation",
+    notes: "Deactivated card without ICCID",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
@@ -210,9 +210,16 @@ export const simService = {
       if (error) throw error;
       return data as SimCard;
     } else {
+      // Validation: Check phone_number uniqueness
+      const existingSims: SimCard[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
+      const phoneConflict = existingSims.find(s => s.phone_number === sim.phone_number);
+      
+      if (phoneConflict) {
+        throw new Error("Nomor SIM Card ini sudah terdaftar!");
+      }
+
       // Validation: Mocking the Unique Active IMEI Constraint
       if (sim.status !== 'DEACTIVATED' && sim.current_imei) {
-        const existingSims: SimCard[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
         const conflict = existingSims.find(s => 
           s.status !== 'DEACTIVATED' && 
           s.current_imei === sim.current_imei

@@ -42,8 +42,8 @@ CREATE TABLE devices (
 -- SIM Cards Table
 CREATE TABLE sim_cards (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  iccid VARCHAR(20) NOT NULL UNIQUE,
-  phone_number VARCHAR(20) UNIQUE,
+  iccid VARCHAR(20),
+  phone_number VARCHAR(20) NOT NULL UNIQUE,
   provider VARCHAR(100) NOT NULL,
   plan_name VARCHAR(100),
   status sim_status NOT NULL DEFAULT 'WAREHOUSE',
@@ -346,6 +346,6 @@ INSERT INTO devices (imei, device_model, manufacturer) VALUES
 ('123456789012345', 'iPhone 14 Pro', 'Apple'),
 ('987654321098765', 'Samsung Galaxy S23', 'Samsung');
 
-INSERT INTO sim_cards (iccid, phone_number, provider, plan_type, status, monthly_cost, activation_date, installation_date) VALUES
-('89620012345678901234', '081234567890', 'Telkomsel', 'Corporate 50GB', 'INSTALLED', 150000, '2026-01-01', '2026-01-05'),
-('89620098765432109876', '081987654321', 'XL Axiata', 'Business Unlimited', 'WAREHOUSE', 200000, NULL, NULL);
+INSERT INTO sim_cards (phone_number, iccid, provider, plan_type, status, monthly_cost, activation_date, installation_date) VALUES
+('081234567890', '89620012345678901234', 'Telkomsel', 'Corporate 50GB', 'INSTALLED', 150000, '2026-01-01', '2026-01-05'),
+('081987654321', '89620098765432109876', 'XL Axiata', 'Business Unlimited', 'WAREHOUSE', 200000, NULL, NULL);

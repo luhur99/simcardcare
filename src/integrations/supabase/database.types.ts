@@ -238,13 +238,13 @@ export type Database = {
           created_at: string | null
           current_imei: string | null
           deactivation_date: string | null
-          iccid: string
+          iccid: string | null
           id: string
           installation_date: string | null
           is_reactivated: boolean | null
           monthly_cost: number | null
           notes: string | null
-          phone_number: string | null
+          phone_number: string
           plan_name: string | null
           provider: string | null
           replacement_reason: string | null
@@ -258,13 +258,13 @@ export type Database = {
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
-          iccid: string
+          iccid?: string | null
           id?: string
           installation_date?: string | null
           is_reactivated?: boolean | null
           monthly_cost?: number | null
           notes?: string | null
-          phone_number?: string | null
+          phone_number: string
           plan_name?: string | null
           provider?: string | null
           replacement_reason?: string | null
@@ -278,13 +278,13 @@ export type Database = {
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
-          iccid?: string
+          iccid?: string | null
           id?: string
           installation_date?: string | null
           is_reactivated?: boolean | null
           monthly_cost?: number | null
           notes?: string | null
-          phone_number?: string | null
+          phone_number?: string
           plan_name?: string | null
           provider?: string | null
           replacement_reason?: string | null

@@ -108,8 +108,8 @@ export default function Home() {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (card) =>
-          card.iccid.toLowerCase().includes(search) ||
-          card.phone_number?.toLowerCase().includes(search) ||
+          card.phone_number.toLowerCase().includes(search) ||
+          card.iccid?.toLowerCase().includes(search) ||
           card.current_imei?.toLowerCase().includes(search) ||
           card.provider?.toLowerCase().includes(search)
       );
@@ -198,7 +198,7 @@ export default function Home() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Cari ICCID, nomor telepon, IMEI, atau provider..."
+              placeholder="Cari nomor SIM, ICCID, IMEI, atau provider..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -256,8 +256,8 @@ export default function Home() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Status</TableHead>
+                      <TableHead>No SIM Card</TableHead>
                       <TableHead>ICCID</TableHead>
-                      <TableHead>Nomor Telepon</TableHead>
                       <TableHead>IMEI</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Paket</TableHead>
@@ -275,12 +275,14 @@ export default function Home() {
                               {statusLabels[sim.status]}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-medium">{sim.iccid}</TableCell>
-                          <TableCell>
+                          <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <Smartphone className="h-4 w-4 text-muted-foreground" />
-                              <span>{sim.phone_number || "-"}</span>
+                              <span>{sim.phone_number}</span>
                             </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {sim.iccid || "-"}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -364,7 +366,12 @@ export default function Home() {
               <DialogDescription>
                 {actionDialog.sim && (
                   <span>
-                    ICCID: <strong>{actionDialog.sim.iccid}</strong>
+                    No SIM: <strong>{actionDialog.sim.phone_number}</strong>
+                    {actionDialog.sim.iccid && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (ICCID: {actionDialog.sim.iccid})
+                      </span>
+                    )}
                   </span>
                 )}
               </DialogDescription>
