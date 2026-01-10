@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
+import { ExcelImport } from "@/components/ExcelImport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Edit, Smartphone } from "lucide-react";
+import { Plus, Search, Edit, Smartphone, Upload } from "lucide-react";
 import { supabase, isSupabaseConnected } from "@/lib/supabase";
 import type { Device } from "@/lib/supabase";
 
@@ -127,8 +128,9 @@ export default function DevicesPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
   // Dialog states
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   
   // Form states
@@ -206,7 +208,7 @@ export default function DevicesPage() {
       serial_number: "",
       status: "AVAILABLE",
     });
-    setAddDialogOpen(true);
+    setIsAddDialogOpen(true);
   };
 
   const openEditDialog = (device: Device) => {
@@ -219,7 +221,7 @@ export default function DevicesPage() {
       serial_number: device.serial_number || "",
       status: device.status || "AVAILABLE",
     });
-    setEditDialogOpen(true);
+    setIsEditDialogOpen(true);
   };
 
   const handleAddDevice = async () => {
@@ -247,7 +249,7 @@ export default function DevicesPage() {
         });
       }
       await loadDevices();
-      setAddDialogOpen(false);
+      setIsAddDialogOpen(false);
     } catch (error) {
       console.error("Error adding device:", error);
       alert("Failed to add device. IMEI must be unique.");
@@ -282,11 +284,135 @@ export default function DevicesPage() {
         });
       }
       await loadDevices();
-      setEditDialogOpen(false);
+      setIsEditDialogOpen(false);
+      resetForm();
     } catch (error) {
       console.error("Error updating device:", error);
       alert("Failed to update device.");
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      imei: "",
+      device_type: "",
+      brand: "",
+      model: "",
+      serial_number: "",
+      status: "AVAILABLE",
+    });
+  };
+
+  const handleImportData = async (data: any[]) => {
+    const errors: any[] = [];
+    const duplicates: string[] = [];
+    const successfulImports: any[] = [];
+    
+    // Get existing IMEIs for duplicate check
+    const existingIMEIs = new Set(devices.map(device => device.imei));
+    const importIMEIs = new Set();
+
+    // Validate and process each row
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2; // Excel row number (accounting for header)
+
+      try {
+        // Extract data with various possible column names
+        const imei = String(row["IMEI"] || row["imei"] || "").trim();
+        const deviceType = String(row["Device Type"] || row["Type"] || row["Tipe Perangkat"] || "").trim();
+        const brand = String(row["Brand"] || row["Merek"] || "").trim();
+        const model = String(row["Model"] || "").trim();
+        const serialNumber = String(row["Serial Number"] || row["SN"] || row["Nomor Seri"] || "").trim();
+        const status = String(row["Status"] || "AVAILABLE").toUpperCase().trim();
+
+        // Validation: IMEI is required
+        if (!imei) {
+          errors.push({
+            row: rowNum,
+            field: "IMEI",
+            message: "IMEI is required",
+            value: imei
+          });
+          continue;
+        }
+
+        // Check for duplicates in existing data
+        if (existingIMEIs.has(imei)) {
+          duplicates.push(`${imei} (Row ${rowNum}) - Already exists in database`);
+          continue;
+        }
+
+        // Check for duplicates within import file
+        if (importIMEIs.has(imei)) {
+          duplicates.push(`${imei} (Row ${rowNum}) - Duplicate in import file`);
+          continue;
+        }
+
+        // Add to import set
+        importIMEIs.add(imei);
+
+        // Prepare device data
+        const deviceData = {
+          imei: imei,
+          device_type: deviceType || null,
+          brand: brand || null,
+          model: model || null,
+          serial_number: serialNumber || null,
+          status: ["AVAILABLE", "IN_USE", "MAINTENANCE"].includes(status) 
+            ? status 
+            : "AVAILABLE",
+          customer_id: null
+        };
+
+        successfulImports.push(deviceData);
+      } catch (error: any) {
+        errors.push({
+          row: rowNum,
+          field: "General",
+          message: error.message || "Error processing row",
+          value: JSON.stringify(row)
+        });
+      }
+    }
+
+    // Import successful records
+    for (const deviceData of successfulImports) {
+      try {
+        if (isSupabaseConnected()) {
+          const { error } = await supabase.from("devices").insert([deviceData]);
+          if (error) throw error;
+        } else {
+          const storedDevices = localStorage.getItem("devices");
+          const devices: Device[] = storedDevices ? JSON.parse(storedDevices) : [];
+          const newDevice: Device = {
+            id: Math.random().toString(36).substring(2, 15),
+            ...deviceData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          devices.push(newDevice);
+          localStorage.setItem("devices", JSON.stringify(devices));
+        }
+      } catch (error: any) {
+        errors.push({
+          row: 0,
+          field: "Import",
+          message: `Failed to import ${deviceData.imei}: ${error.message}`,
+          value: deviceData.imei
+        });
+      }
+    }
+
+    // Refresh data
+    await loadDevices();
+
+    return {
+      success: successfulImports.length - errors.filter(e => e.row === 0).length,
+      failed: errors.length + duplicates.length,
+      errors,
+      duplicates
+    };
   };
 
   const getStatusBadgeVariant = (status: string | null) => {
@@ -324,17 +450,23 @@ export default function DevicesPage() {
 
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Devices</h1>
+            <h1 className="text-3xl font-bold">Devices</h1>
             <p className="text-muted-foreground">
               Manage devices and IMEI assignments
             </p>
           </div>
-          <Button onClick={openAddDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Device
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsImportDialogOpen(true)} variant="outline" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Device
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -505,7 +637,7 @@ export default function DevicesPage() {
       </div>
 
       {/* Add Device Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Device</DialogTitle>
@@ -597,7 +729,7 @@ export default function DevicesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleAddDevice}>Add Device</Button>
@@ -606,7 +738,7 @@ export default function DevicesPage() {
       </Dialog>
 
       {/* Edit Device Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Device</DialogTitle>
@@ -701,7 +833,7 @@ export default function DevicesPage() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setEditDialogOpen(false)}
+              onClick={() => setIsEditDialogOpen(false)}
             >
               Cancel
             </Button>
@@ -709,6 +841,23 @@ export default function DevicesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImport
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImport={handleImportData}
+        templateColumns={[
+          { key: "imei", label: "IMEI", example: "123456789012345" },
+          { key: "device_type", label: "Device Type", example: "GPS Tracker" },
+          { key: "brand", label: "Brand", example: "TechCorp" },
+          { key: "model", label: "Model", example: "GPS Tracker V1" },
+          { key: "serial_number", label: "Serial Number", example: "SN-001" },
+          { key: "status", label: "Status", example: "AVAILABLE" }
+        ]}
+        entityName="Devices"
+        downloadTemplateName="devices"
+      />
     </Layout>
   );
 }

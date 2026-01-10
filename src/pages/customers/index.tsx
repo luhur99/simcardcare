@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
+import { ExcelImport } from "@/components/ExcelImport";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Users, UserCheck, Edit, Phone, Mail, MapPin, Building2, CreditCard } from "lucide-react";
+import { Plus, Search, Users, Building2, UserCheck, Phone, Mail, MapPin, CreditCard, Edit, Upload } from "lucide-react";
 import { supabase, isSupabaseConnected, type Customer } from "@/lib/supabase";
 
 type CustomerFormData = {
@@ -34,6 +35,9 @@ export default function CustomersPage() {
     company: "",
     tax_id: ""
   });
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -160,10 +164,133 @@ export default function CustomersPage() {
 
       closeDialog();
       await loadCustomers();
+      resetForm();
     } catch (error) {
       console.error("Error updating customer:", error);
       alert("Failed to update customer. Please try again.");
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      company: "",
+      tax_id: ""
+    });
+  };
+
+  const handleImportData = async (data: any[]) => {
+    const errors: any[] = [];
+    const duplicates: string[] = [];
+    const successfulImports: any[] = [];
+    
+    // Get existing customer names/emails for duplicate check
+    const existingEmails = new Set(
+      customers.filter(c => c.email).map(c => c.email?.toLowerCase())
+    );
+    const importEmails = new Set();
+
+    // Validate and process each row
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2; // Excel row number (accounting for header)
+
+      try {
+        // Extract data with various possible column names
+        const name = String(row["Customer Name"] || row["Name"] || row["Nama"] || "").trim();
+        const company = String(row["Company"] || row["Perusahaan"] || "").trim();
+        const phone = String(row["Phone"] || row["Telepon"] || row["No HP"] || "").trim();
+        const email = String(row["Email"] || "").trim().toLowerCase();
+        const taxId = String(row["Tax ID"] || row["NPWP"] || "").trim();
+        const address = String(row["Address"] || row["Alamat"] || "").trim();
+
+        // Validation: Name is required
+        if (!name) {
+          errors.push({
+            row: rowNum,
+            field: "Name",
+            message: "Customer name is required",
+            value: name
+          });
+          continue;
+        }
+
+        // Check for duplicate email in existing data
+        if (email && existingEmails.has(email)) {
+          duplicates.push(`${email} (Row ${rowNum}) - Email already exists in database`);
+          continue;
+        }
+
+        // Check for duplicate email within import file
+        if (email && importEmails.has(email)) {
+          duplicates.push(`${email} (Row ${rowNum}) - Duplicate email in import file`);
+          continue;
+        }
+
+        // Add to import set
+        if (email) importEmails.add(email);
+
+        // Prepare customer data
+        const customerData = {
+          name: name,
+          email: email || null,
+          phone: phone || null,
+          address: address || null,
+          company: company || null,
+          tax_id: taxId || null
+        };
+
+        successfulImports.push(customerData);
+      } catch (error: any) {
+        errors.push({
+          row: rowNum,
+          field: "General",
+          message: error.message || "Error processing row",
+          value: JSON.stringify(row)
+        });
+      }
+    }
+
+    // Import successful records
+    for (const customerData of successfulImports) {
+      try {
+        if (isSupabaseConnected()) {
+          const { error } = await supabase.from("customers").insert([customerData]);
+          if (error) throw error;
+        } else {
+          const storedCustomers = localStorage.getItem("customers");
+          const customers: Customer[] = storedCustomers ? JSON.parse(storedCustomers) : [];
+          const newCustomer: Customer = {
+            id: Math.random().toString(36).substring(2, 15),
+            ...customerData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          customers.push(newCustomer);
+          localStorage.setItem("customers", JSON.stringify(customers));
+        }
+      } catch (error: any) {
+        errors.push({
+          row: 0,
+          field: "Import",
+          message: `Failed to import ${customerData.name}: ${error.message}`,
+          value: customerData.name
+        });
+      }
+    }
+
+    // Refresh data
+    await loadCustomers();
+
+    return {
+      success: successfulImports.length - errors.filter(e => e.row === 0).length,
+      failed: errors.length + duplicates.length,
+      errors,
+      duplicates
+    };
   };
 
   const openAddDialog = () => {
@@ -221,17 +348,23 @@ export default function CustomersPage() {
       />
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
+            <h1 className="text-3xl font-bold">Customers</h1>
             <p className="text-muted-foreground">
               Manage your customer database and company details
             </p>
           </div>
-          <Button onClick={openAddDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Customer
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsImportDialogOpen(true)} variant="outline" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Customer
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -495,6 +628,23 @@ export default function CustomersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Excel Import Dialog */}
+      <ExcelImport
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImport={handleImportData}
+        templateColumns={[
+          { key: "name", label: "Customer Name", example: "Budi Santoso" },
+          { key: "company", label: "Company", example: "PT Transportasi Nusantara" },
+          { key: "phone", label: "Phone", example: "081234567890" },
+          { key: "email", label: "Email", example: "contact@company.com" },
+          { key: "tax_id", label: "Tax ID (NPWP)", example: "01.234.567.8-012.000" },
+          { key: "address", label: "Address", example: "Jl. Sudirman No. 123, Jakarta" }
+        ]}
+        entityName="Customers"
+        downloadTemplateName="customers"
+      />
     </Layout>
   );
 }

@@ -29,11 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Filter, Download, Eye } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye, Upload } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
 import Link from "next/link";
+import { ExcelImport } from "@/components/ExcelImport";
 
 const STATUS_COLORS: Record<SimStatus, string> = {
   WAREHOUSE: "bg-gray-500",
@@ -50,6 +51,9 @@ export default function SimCardsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimStatus | "ALL">("ALL");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [editingSim, setEditingSim] = useState<SimCard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Form State
@@ -149,6 +153,118 @@ export default function SimCardsPage() {
     });
   };
 
+  const handleImportData = async (data: any[]) => {
+    const errors: any[] = [];
+    const duplicates: string[] = [];
+    const successfulImports: any[] = [];
+    
+    // Get existing phone numbers for duplicate check
+    const existingPhoneNumbers = new Set(simCards.map(sim => sim.phone_number));
+    const importPhoneNumbers = new Set();
+
+    // Validate and process each row
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNum = i + 2; // Excel row number (accounting for header)
+
+      try {
+        // Extract data with various possible column names
+        let phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
+        const iccid = String(row["ICCID"] || "").trim();
+        const provider = String(row["Provider"] || row["Operator"] || "").trim();
+        const packageName = String(row["Package"] || row["Paket"] || "").trim();
+        const monthlyCost = String(row["Monthly Cost"] || row["Biaya Bulanan"] || "0").trim();
+        const status = String(row["Status"] || "WAREHOUSE").toUpperCase().trim();
+
+        // Validation: Phone number is required
+        if (!phoneNumber) {
+          errors.push({
+            row: rowNum,
+            field: "No SIM Card",
+            message: "Phone number is required",
+            value: phoneNumber
+          });
+          continue;
+        }
+
+        // Auto-add prefix "0" if not present
+        if (!phoneNumber.startsWith("0")) {
+          phoneNumber = "0" + phoneNumber;
+        }
+
+        // Check for duplicates in existing data
+        if (existingPhoneNumbers.has(phoneNumber)) {
+          duplicates.push(`${phoneNumber} (Row ${rowNum}) - Already exists in database`);
+          continue;
+        }
+
+        // Check for duplicates within import file
+        if (importPhoneNumbers.has(phoneNumber)) {
+          duplicates.push(`${phoneNumber} (Row ${rowNum}) - Duplicate in import file`);
+          continue;
+        }
+
+        // Add to import set
+        importPhoneNumbers.add(phoneNumber);
+
+        // Prepare SIM card data
+        const simData = {
+          phone_number: phoneNumber,
+          iccid: iccid || null,
+          provider: provider || null,
+          package_name: packageName || null,
+          status: ["WAREHOUSE", "ACTIVATED", "INSTALLED", "BILLING", "GRACE_PERIOD", "DEACTIVATED"].includes(status) 
+            ? status 
+            : "WAREHOUSE",
+          current_imei: null,
+          customer_id: null,
+          monthly_cost: monthlyCost ? parseFloat(monthlyCost.replace(/[^0-9.-]/g, "")) : 0,
+          activation_date: null,
+          installation_date: null,
+          billing_cycle_day: null,
+          grace_period_end: null,
+          deactivation_date: null,
+          deactivation_reason: null,
+          replacement_reason: null,
+          notes: null
+        };
+
+        successfulImports.push(simData);
+      } catch (error: any) {
+        errors.push({
+          row: rowNum,
+          field: "General",
+          message: error.message || "Error processing row",
+          value: JSON.stringify(row)
+        });
+      }
+    }
+
+    // Import successful records
+    for (const simData of successfulImports) {
+      try {
+        await simService.createSimCard(simData);
+      } catch (error: any) {
+        errors.push({
+          row: 0,
+          field: "Import",
+          message: `Failed to import ${simData.phone_number}: ${error.message}`,
+          value: simData.phone_number
+        });
+      }
+    }
+
+    // Refresh data
+    loadSimCards();
+
+    return {
+      success: successfulImports.length - errors.filter(e => e.row === 0).length,
+      failed: errors.length + duplicates.length,
+      errors,
+      duplicates
+    };
+  };
+
   const formatCurrency = (amount: number | null) => {
     if (amount === null || amount === undefined) return "Rp 0";
     return new Intl.NumberFormat("id-ID", {
@@ -167,141 +283,145 @@ export default function SimCardsPage() {
       />
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">SIM Cards</h1>
+            <h1 className="text-3xl font-bold">SIM Cards</h1>
             <p className="text-muted-foreground">
-              Manage and track your SIM card inventory
+              Manage your SIM card inventory and status
             </p>
           </div>
-          
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add SIM Card
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Add New SIM Card</DialogTitle>
-                <DialogDescription>
-                  Enter the details of the new SIM card to add to inventory.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone_number">No SIM Card *</Label>
-                    <Input
-                      id="phone_number"
-                      placeholder="081234567890"
-                      value={formData.phone_number}
-                      onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="iccid">ICCID (Opsional)</Label>
-                    <Input
-                      id="iccid"
-                      placeholder="89620012345678901234"
-                      value={formData.iccid}
-                      onChange={(e) => setFormData({...formData, iccid: e.target.value})}
-                    />
-                  </div>
-                </div>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsImportDialogOpen(true)} variant="outline" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add SIM Card
+            </Button>
+          </div>
+        </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="provider">Provider *</Label>
-                    <Input
-                      id="provider"
-                      placeholder="Telkomsel"
-                      value={formData.provider}
-                      onChange={(e) => setFormData({...formData, provider: e.target.value})}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="plan_name">Plan Name</Label>
-                    <Input
-                      id="plan_name"
-                      placeholder="Corporate 50GB"
-                      value={formData.plan_name}
-                      onChange={(e) => setFormData({...formData, plan_name: e.target.value})}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="status">Status</Label>
-                    <Select 
-                      value={formData.status} 
-                      onValueChange={(value) => setFormData({...formData, status: value as SimStatus})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="WAREHOUSE">WAREHOUSE</SelectItem>
-                        <SelectItem value="ACTIVATED">ACTIVATED</SelectItem>
-                        <SelectItem value="INSTALLED">INSTALLED</SelectItem>
-                        <SelectItem value="BILLING">BILLING</SelectItem>
-                        <SelectItem value="GRACE_PERIOD">GRACE_PERIOD</SelectItem>
-                        <SelectItem value="DEACTIVATED">DEACTIVATED</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="current_imei">Current IMEI</Label>
-                    <Input
-                      id="current_imei"
-                      placeholder="123456789012345"
-                      value={formData.current_imei}
-                      onChange={(e) => setFormData({...formData, current_imei: e.target.value})}
-                    />
-                  </div>
-                </div>
-
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New SIM Card</DialogTitle>
+              <DialogDescription>
+                Enter the details of the new SIM card to add to inventory.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="monthly_cost">Monthly Cost (IDR)</Label>
+                  <Label htmlFor="phone_number">No SIM Card *</Label>
                   <Input
-                    id="monthly_cost"
-                    type="number"
-                    placeholder="150000"
-                    value={formData.monthly_cost}
-                    onChange={(e) => setFormData({...formData, monthly_cost: e.target.value})}
+                    id="phone_number"
+                    placeholder="081234567890"
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                    required
                   />
                 </div>
-
+                
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
+                  <Label htmlFor="iccid">ICCID (Opsional)</Label>
                   <Input
-                    id="notes"
-                    placeholder="Additional notes..."
-                    value={formData.notes}
-                    onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                    id="iccid"
+                    placeholder="89620012345678901234"
+                    value={formData.iccid}
+                    onChange={(e) => setFormData({...formData, iccid: e.target.value})}
                   />
                 </div>
               </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddSimCard}>
-                  Add SIM Card
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="provider">Provider *</Label>
+                  <Input
+                    id="provider"
+                    placeholder="Telkomsel"
+                    value={formData.provider}
+                    onChange={(e) => setFormData({...formData, provider: e.target.value})}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="plan_name">Plan Name</Label>
+                  <Input
+                    id="plan_name"
+                    placeholder="Corporate 50GB"
+                    value={formData.plan_name}
+                    onChange={(e) => setFormData({...formData, plan_name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status</Label>
+                  <Select 
+                    value={formData.status} 
+                    onValueChange={(value) => setFormData({...formData, status: value as SimStatus})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WAREHOUSE">WAREHOUSE</SelectItem>
+                      <SelectItem value="ACTIVATED">ACTIVATED</SelectItem>
+                      <SelectItem value="INSTALLED">INSTALLED</SelectItem>
+                      <SelectItem value="BILLING">BILLING</SelectItem>
+                      <SelectItem value="GRACE_PERIOD">GRACE_PERIOD</SelectItem>
+                      <SelectItem value="DEACTIVATED">DEACTIVATED</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="current_imei">Current IMEI</Label>
+                  <Input
+                    id="current_imei"
+                    placeholder="123456789012345"
+                    value={formData.current_imei}
+                    onChange={(e) => setFormData({...formData, current_imei: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="monthly_cost">Monthly Cost (IDR)</Label>
+                <Input
+                  id="monthly_cost"
+                  type="number"
+                  placeholder="150000"
+                  value={formData.monthly_cost}
+                  onChange={(e) => setFormData({...formData, monthly_cost: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Input
+                  id="notes"
+                  placeholder="Additional notes..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddSimCard}>
+                Add SIM Card
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Filters & Search */}
         <Card>
@@ -426,6 +546,23 @@ export default function SimCardsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Excel Import Dialog */}
+      <ExcelImport
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImport={handleImportData}
+        templateColumns={[
+          { key: "phone_number", label: "No SIM Card", example: "081234567890" },
+          { key: "iccid", label: "ICCID", example: "89620012345678901234" },
+          { key: "provider", label: "Provider", example: "Telkomsel" },
+          { key: "package_name", label: "Package", example: "Unlimited Data" },
+          { key: "monthly_cost", label: "Monthly Cost", example: "150000" },
+          { key: "status", label: "Status", example: "WAREHOUSE" }
+        ]}
+        entityName="SIM Cards"
+        downloadTemplateName="simcards"
+      />
     </Layout>
   );
 }
