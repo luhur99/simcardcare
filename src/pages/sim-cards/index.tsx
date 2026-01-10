@@ -19,7 +19,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -29,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Filter, Download, Eye, Upload } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
@@ -45,18 +44,35 @@ const STATUS_COLORS: Record<SimStatus, string> = {
   DEACTIVATED: "bg-red-500"
 };
 
+type ActionType = "grace_period" | "reactivate" | "deactivate" | null;
+
 export default function SimCardsPage() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [filteredSims, setFilteredSims] = useState<SimCard[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimStatus | "ALL">("ALL");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [editingSim, setEditingSim] = useState<SimCard | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Form State
+  // Action Dialog State
+  const [actionDialog, setActionDialog] = useState<{
+    isOpen: boolean;
+    type: ActionType;
+    sim: SimCard | null;
+  }>({
+    isOpen: false,
+    type: null,
+    sim: null
+  });
+
+  const [actionFormData, setActionFormData] = useState({
+    date: new Date().toISOString().split("T")[0],
+    dueDate: "",
+    reason: ""
+  });
+
+  // Form State for Add SIM
   const [formData, setFormData] = useState({
     phone_number: "",
     iccid: "",
@@ -117,7 +133,6 @@ export default function SimCardsPage() {
         return;
       }
 
-      // Validation: If status is DEACTIVATED, deactivation_reason is required
       if (formData.status === "DEACTIVATED" && !formData.deactivation_reason) {
         alert("Alasan Deaktivasi wajib diisi untuk status DEACTIVATED!");
         return;
@@ -171,22 +186,111 @@ export default function SimCardsPage() {
     });
   };
 
+  const openActionDialog = (type: ActionType, sim: SimCard) => {
+    setActionDialog({
+      isOpen: true,
+      type,
+      sim
+    });
+    setActionFormData({
+      date: new Date().toISOString().split("T")[0],
+      dueDate: "",
+      reason: ""
+    });
+  };
+
+  const closeActionDialog = () => {
+    setActionDialog({
+      isOpen: false,
+      type: null,
+      sim: null
+    });
+    setActionFormData({
+      date: new Date().toISOString().split("T")[0],
+      dueDate: "",
+      reason: ""
+    });
+  };
+
+  const handleActionSubmit = async () => {
+    if (!actionDialog.sim) return;
+
+    try {
+      const simId = actionDialog.sim.id;
+
+      switch (actionDialog.type) {
+        case "grace_period":
+          if (!actionFormData.dueDate) {
+            alert("Batas Bayar Langganan Pulsa wajib diisi!");
+            return;
+          }
+          await simService.enterGracePeriod(
+            simId,
+            actionFormData.date,
+            actionFormData.dueDate
+          );
+          break;
+
+        case "reactivate":
+          await simService.activateSimCard(simId, actionFormData.date);
+          break;
+
+        case "deactivate":
+          if (!actionFormData.reason) {
+            alert("Alasan deaktivasi wajib diisi!");
+            return;
+          }
+          await simService.deactivateSimCard(
+            simId,
+            actionFormData.date,
+            actionFormData.reason
+          );
+          break;
+      }
+
+      await loadSimCards();
+      closeActionDialog();
+    } catch (error: any) {
+      alert(error.message || "Error processing action");
+    }
+  };
+
+  const calculateDaysOverdue = (startDate: string | null): number | null => {
+    if (!startDate) return null;
+    
+    try {
+      const start = new Date(startDate);
+      if (isNaN(start.getTime())) return null;
+      
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch {
+      return null;
+    }
+  };
+
+  const getDaysColorClass = (days: number): string => {
+    if (days <= 5) return "text-green-600";
+    if (days <= 10) return "text-yellow-600";
+    return "text-red-600";
+  };
+
   const handleImportData = async (data: any[]) => {
     const errors: any[] = [];
     const duplicates: string[] = [];
     const successfulImports: any[] = [];
     
-    // Get existing phone numbers for duplicate check
     const existingPhoneNumbers = new Set(simCards.map(sim => sim.phone_number));
     const importPhoneNumbers = new Set();
 
-    // Validate and process each row
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
-      const rowNum = i + 2; // Excel row number (accounting for header)
+      const rowNum = i + 2;
 
       try {
-        // Extract data with various possible column names
         let phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
         const iccid = String(row["ICCID"] || "").trim();
         const provider = String(row["Provider"] || row["Operator"] || "").trim();
@@ -194,7 +298,6 @@ export default function SimCardsPage() {
         const monthlyCost = String(row["Monthly Cost"] || row["Biaya Bulanan"] || "0").trim();
         const status = String(row["Status"] || "WAREHOUSE").toUpperCase().trim();
 
-        // Validation: Phone number is required
         if (!phoneNumber) {
           errors.push({
             row: rowNum,
@@ -205,27 +308,22 @@ export default function SimCardsPage() {
           continue;
         }
 
-        // Auto-add prefix "0" if not present
         if (!phoneNumber.startsWith("0")) {
           phoneNumber = "0" + phoneNumber;
         }
 
-        // Check for duplicates in existing data
         if (existingPhoneNumbers.has(phoneNumber)) {
           duplicates.push(`${phoneNumber} (Row ${rowNum}) - Already exists in database`);
           continue;
         }
 
-        // Check for duplicates within import file
         if (importPhoneNumbers.has(phoneNumber)) {
           duplicates.push(`${phoneNumber} (Row ${rowNum}) - Duplicate in import file`);
           continue;
         }
 
-        // Add to import set
         importPhoneNumbers.add(phoneNumber);
 
-        // Prepare SIM card data
         const simData = {
           phone_number: phoneNumber,
           iccid: iccid || null,
@@ -256,7 +354,6 @@ export default function SimCardsPage() {
       }
     }
 
-    // Import successful records
     for (const simData of successfulImports) {
       try {
         await simService.createSimCard(simData);
@@ -270,7 +367,6 @@ export default function SimCardsPage() {
       }
     }
 
-    // Refresh data
     loadSimCards();
 
     return {
@@ -289,6 +385,32 @@ export default function SimCardsPage() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const getActionDialogTitle = () => {
+    switch (actionDialog.type) {
+      case "grace_period":
+        return "Masukkan Ke Periode Pengingat";
+      case "reactivate":
+        return "Reaktivasi Kartu SIM";
+      case "deactivate":
+        return "Non-aktifkan Kartu SIM";
+      default:
+        return "";
+    }
+  };
+
+  const getActionDialogDescription = () => {
+    switch (actionDialog.type) {
+      case "grace_period":
+        return "Masukkan tanggal dan batas bayar langganan pulsa untuk periode pengingat.";
+      case "reactivate":
+        return "Konfirmasi reaktivasi kartu SIM setelah pembayaran diterima.";
+      case "deactivate":
+        return "Masukkan alasan deaktivasi kartu SIM.";
+      default:
+        return "";
+    }
   };
 
   return (
@@ -318,6 +440,7 @@ export default function SimCardsPage() {
           </div>
         </div>
 
+        {/* Add SIM Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -486,6 +609,105 @@ export default function SimCardsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Action Dialog (Grace Period / Reactivate / Deactivate) */}
+        <Dialog open={actionDialog.isOpen} onOpenChange={closeActionDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{getActionDialogTitle()}</DialogTitle>
+              <DialogDescription>
+                {getActionDialogDescription()}
+              </DialogDescription>
+            </DialogHeader>
+
+            {actionDialog.sim && (
+              <div className="space-y-4 py-4">
+                <div className="p-3 bg-muted rounded-lg">
+                  <div className="text-sm font-medium">No SIM: {actionDialog.sim.phone_number}</div>
+                  {actionDialog.sim.iccid && (
+                    <div className="text-xs text-muted-foreground">ICCID: {actionDialog.sim.iccid}</div>
+                  )}
+                </div>
+
+                {actionDialog.type === "grace_period" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="grace_date">Tanggal</Label>
+                      <Input
+                        id="grace_date"
+                        type="date"
+                        value={actionFormData.date}
+                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="due_date">Batas Bayar Langganan Pulsa *</Label>
+                      <Input
+                        id="due_date"
+                        type="date"
+                        value={actionFormData.dueDate}
+                        onChange={(e) => setActionFormData({...actionFormData, dueDate: e.target.value})}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {actionDialog.type === "reactivate" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="reactivate_date">Tanggal Reaktivasi</Label>
+                    <Input
+                      id="reactivate_date"
+                      type="date"
+                      value={actionFormData.date}
+                      onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                    />
+                  </div>
+                )}
+
+                {actionDialog.type === "deactivate" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="deactivate_date">Tanggal Deaktivasi</Label>
+                      <Input
+                        id="deactivate_date"
+                        type="date"
+                        value={actionFormData.date}
+                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="deactivate_reason">Alasan Deaktivasi *</Label>
+                      <Input
+                        id="deactivate_reason"
+                        placeholder="Contoh: Tidak ada pembayaran setelah grace period"
+                        value={actionFormData.reason}
+                        onChange={(e) => setActionFormData({...actionFormData, reason: e.target.value})}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={closeActionDialog}>
+                Batal
+              </Button>
+              <Button onClick={handleActionSubmit}>
+                {actionDialog.type === "grace_period" && "Simpan Grace Period"}
+                {actionDialog.type === "reactivate" && "Reaktivasi"}
+                {actionDialog.type === "deactivate" && "Non-aktifkan"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Filters & Search */}
         <Card>
           <CardHeader>
@@ -562,46 +784,101 @@ export default function SimCardsPage() {
                       <TableHead>IMEI</TableHead>
                       <TableHead>Biaya Bulanan</TableHead>
                       <TableHead>Akumulasi Biaya</TableHead>
-                      <TableHead className="text-right">Aksi</TableHead>
+                      <TableHead className="text-right">Quick Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSims.map((sim) => (
-                      <TableRow key={sim.id}>
-                        <TableCell className="font-mono text-sm font-medium">
-                          {sim.phone_number}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {sim.iccid || "-"}
-                        </TableCell>
-                        <TableCell>{sim.provider}</TableCell>
-                        <TableCell>{sim.plan_name || "-"}</TableCell>
-                        <TableCell>
-                          <Badge 
-                            className={`${STATUS_COLORS[sim.status]} text-white`}
-                          >
-                            {sim.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {sim.current_imei || "-"}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency(sim.monthly_cost)}
-                        </TableCell>
-                        <TableCell className="font-bold text-primary">
-                          {formatCurrency(sim.accumulated_cost)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link href={`/sim-cards/${sim.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4 mr-2" />
-                              Detail
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredSims.map((sim) => {
+                      const daysOverdue = calculateDaysOverdue(sim.grace_period_start_date);
+                      const colorClass = daysOverdue !== null ? getDaysColorClass(daysOverdue) : "";
+
+                      return (
+                        <TableRow key={sim.id}>
+                          <TableCell className="font-mono text-sm font-medium">
+                            {sim.phone_number}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm text-muted-foreground">
+                            {sim.iccid || "-"}
+                          </TableCell>
+                          <TableCell>{sim.provider}</TableCell>
+                          <TableCell>{sim.plan_name || "-"}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <Badge className={`${STATUS_COLORS[sim.status]} text-white`}>
+                                {sim.status}
+                              </Badge>
+                              
+                              {sim.status === "GRACE_PERIOD" && daysOverdue !== null && (
+                                <div className="text-xs font-medium space-y-1">
+                                  <div className={colorClass}>
+                                    Overdue: {daysOverdue} hari
+                                  </div>
+                                  {sim.grace_period_due_date && (
+                                    <div className="text-gray-500">
+                                      Due: {sim.grace_period_due_date}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {sim.current_imei || "-"}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {formatCurrency(sim.monthly_cost)}
+                          </TableCell>
+                          <TableCell className="font-bold text-primary">
+                            {formatCurrency(sim.accumulated_cost)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {sim.status === "INSTALLED" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openActionDialog("grace_period", sim)}
+                                  className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                >
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Grace Period
+                                </Button>
+                              )}
+
+                              {sim.status === "GRACE_PERIOD" && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openActionDialog("reactivate", sim)}
+                                    className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Reaktivasi
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openActionDialog("deactivate", sim)}
+                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Non-Aktifkan
+                                  </Button>
+                                </>
+                              )}
+
+                              <Link href={`/sim-cards/${sim.id}`}>
+                                <Button variant="ghost" size="sm">
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Detail
+                                </Button>
+                              </Link>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
