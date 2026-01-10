@@ -70,6 +70,7 @@ export default function Home() {
     type: ActionType | null;
     sim: SimCard | null;
   }>({ open: false, type: null, sim: null });
+  
   const [actionData, setActionData] = useState<{
     date: string;
     imei: string;
@@ -96,7 +97,7 @@ export default function Home() {
     try {
       setLoading(true);
       const cards = await simService.getSimCards();
-      setSimCards(cards || []);
+      setSimCards(Array.isArray(cards) ? cards : []);
     } catch (error) {
       console.error("Error loading SIM cards:", error);
       setSimCards([]);
@@ -106,12 +107,17 @@ export default function Home() {
   };
 
   const filterCards = () => {
+    if (!Array.isArray(simCards)) {
+      setFilteredCards([]);
+      return;
+    }
+
     let filtered = simCards;
 
-    // Filter by status - handle BILLING migration gracefully
+    // Filter by status
     if (filterStatus !== "ALL") {
       filtered = filtered.filter((card) => {
-        // Treat BILLING as INSTALLED for filtering
+        if (!card || !card.status) return false;
         const cardStatus = card.status === 'BILLING' ? 'INSTALLED' : card.status;
         return cardStatus === filterStatus;
       });
@@ -122,10 +128,10 @@ export default function Home() {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (card) =>
-          card.phone_number.toLowerCase().includes(search) ||
-          card.iccid?.toLowerCase().includes(search) ||
-          card.current_imei?.toLowerCase().includes(search) ||
-          card.provider?.toLowerCase().includes(search)
+          card?.phone_number?.toLowerCase().includes(search) ||
+          card?.iccid?.toLowerCase().includes(search) ||
+          card?.current_imei?.toLowerCase().includes(search) ||
+          card?.provider?.toLowerCase().includes(search)
       );
     }
 
@@ -145,7 +151,13 @@ export default function Home() {
 
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, sim: null });
-    setActionData({ date: "", imei: "", reason: "", freePulsaMonths: 0, grace_period_due_date: "" });
+    setActionData({ 
+      date: "", 
+      imei: "", 
+      reason: "", 
+      freePulsaMonths: 0, 
+      grace_period_due_date: "" 
+    });
   };
 
   const handleQuickAction = async () => {
@@ -193,7 +205,7 @@ export default function Home() {
   };
 
   const canActivate = (sim: SimCard) => sim.status === "WAREHOUSE";
-  const canReactivate = (sim: SimCard) => sim.status === "DEACTIVATED";
+  const canReactivate = (sim: SimCard) => sim.status === "DEACTIVATED" || sim.status === "GRACE_PERIOD";
   const canInstall = (sim: SimCard) => sim.status === "ACTIVATED";
   const canDeactivate = (sim: SimCard) =>
     sim.status !== "DEACTIVATED" && sim.status !== "WAREHOUSE";
@@ -294,7 +306,6 @@ export default function Home() {
                   </TableHeader>
                   <TableBody>
                     {filteredCards.map((sim) => {
-                      // Fallback for migrated data or type safety: treat BILLING as INSTALLED visual
                       const effectiveStatus = (sim.status === 'BILLING' ? 'INSTALLED' : sim.status) as VisibleStatus;
                       const colors = statusColors[effectiveStatus] || {
                         bg: "bg-gray-100",
@@ -302,52 +313,22 @@ export default function Home() {
                         border: "border-gray-300"
                       };
 
-                      // Calculate grace period info OUTSIDE JSX for safety
-                      let gracePeriodInfo = null;
-                      if (sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date) {
-                        try {
-                          const start = new Date(sim.grace_period_start_date);
-                          const now = new Date();
-                          
-                          // Validate dates
-                          if (!isNaN(start.getTime())) {
-                            const diffTime = Math.abs(now.getTime() - start.getTime());
-                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            
-                            let colorClass = "text-green-600";
-                            if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
-                            if (diffDays > 10) colorClass = "text-red-600";
-
-                            gracePeriodInfo = {
-                              days: diffDays,
-                              colorClass: colorClass,
-                              dueDate: sim.grace_period_due_date || null
-                            };
-                          }
-                        } catch (error) {
-                          console.error("Error calculating grace period:", error);
-                          gracePeriodInfo = null;
-                        }
-                      }
-
                       return (
                         <TableRow key={sim.id}>
                           <TableCell>
                             <Badge className={`${colors.bg} ${colors.text} border ${colors.border}`}>
                               {statusLabels[effectiveStatus]}
                             </Badge>
-                            {gracePeriodInfo && (
+                            {sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date && (
                               <div className="mt-2 text-xs font-medium">
-                                <div className="flex flex-col gap-1">
-                                  <span className={gracePeriodInfo.colorClass}>
-                                    Overdue: {gracePeriodInfo.days} hari
-                                  </span>
-                                  {gracePeriodInfo.dueDate && (
-                                    <span className="text-gray-500">
-                                      Due: {gracePeriodInfo.dueDate}
-                                    </span>
-                                  )}
+                                <div className="text-orange-600">
+                                  Grace Period Active
                                 </div>
+                                {sim.grace_period_due_date && (
+                                  <div className="text-gray-500">
+                                    Due: {sim.grace_period_due_date}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -381,7 +362,7 @@ export default function Home() {
                                   Aktivasi
                                 </Button>
                               )}
-                              {canReactivate(sim) && (
+                              {canReactivate(sim) && sim.status === "DEACTIVATED" && (
                                 <Button
                                   size="sm"
                                   variant="outline"
