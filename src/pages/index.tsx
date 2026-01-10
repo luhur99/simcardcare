@@ -306,27 +306,38 @@ export default function Home() {
                             {sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date && (
                               <div className="mt-2 text-xs font-medium">
                                 {(() => {
-                                  const start = new Date(sim.grace_period_start_date);
-                                  const now = new Date();
-                                  const diffTime = Math.abs(now.getTime() - start.getTime());
-                                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                  
-                                  let colorClass = "text-green-600";
-                                  if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
-                                  if (diffDays > 10) colorClass = "text-red-600";
+                                  try {
+                                    const start = new Date(sim.grace_period_start_date);
+                                    const now = new Date();
+                                    
+                                    // Validate dates
+                                    if (isNaN(start.getTime())) {
+                                      return <span className="text-gray-500">Invalid date</span>;
+                                    }
+                                    
+                                    const diffTime = Math.abs(now.getTime() - start.getTime());
+                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    
+                                    let colorClass = "text-green-600";
+                                    if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
+                                    if (diffDays > 10) colorClass = "text-red-600";
 
-                                  return (
-                                    <div className="flex flex-col gap-1">
-                                      <span className={colorClass}>
-                                        Overdue: {diffDays} hari
-                                      </span>
-                                      {sim.grace_period_due_date && (
-                                        <span className="text-gray-500">
-                                          Due: {sim.grace_period_due_date}
+                                    return (
+                                      <div className="flex flex-col gap-1">
+                                        <span className={colorClass}>
+                                          Overdue: {diffDays} hari
                                         </span>
-                                      )}
-                                    </div>
-                                  );
+                                        {sim.grace_period_due_date && (
+                                          <span className="text-gray-500">
+                                            Due: {sim.grace_period_due_date}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  } catch (error) {
+                                    console.error("Error calculating grace period days:", error);
+                                    return <span className="text-gray-500">-</span>;
+                                  }
                                 })()}
                               </div>
                             )}
