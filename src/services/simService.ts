@@ -369,13 +369,59 @@ export const simService = {
 
   // Quick Actions for Dashboard
   async activateSimCard(id: string, activationDate: string): Promise<SimCard> {
+    // Check previous status for Reactivation logic
+    const currentSim = await this.getSimCardById(id);
+    const isReactivation = currentSim?.status === 'DEACTIVATED';
+
     return this.updateSimCard(id, {
       status: 'ACTIVATED',
-      activation_date: activationDate
+      activation_date: activationDate,
+      is_reactivated: isReactivation
     });
   },
 
   async installSimCard(id: string, installationDate: string, imei: string): Promise<SimCard> {
+    // REPLACEMENT LOGIC: Check for existing active SIM on this IMEI
+    if (isSupabaseConnected()) {
+      const { data: existingSims } = await supabase
+        .from('sim_cards')
+        .select('*')
+        .eq('current_imei', imei)
+        .neq('status', 'DEACTIVATED')
+        .neq('id', id); // Exclude self if already assigned
+
+      if (existingSims && existingSims.length > 0) {
+        const oldSim = existingSims[0];
+        console.log(`Replacement detected: Deactivating old SIM ${oldSim.iccid} for IMEI ${imei}`);
+        
+        // Deactivate the old SIM
+        await this.deactivateSimCard(
+          oldSim.id, 
+          installationDate, 
+          "Auto-deactivated due to SIM Replacement",
+          "SIM_REPLACED"
+        );
+      }
+    } else {
+      // Mock logic for replacement
+      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
+      const conflict = sims.find((s: SimCard) => 
+        s.current_imei === imei && 
+        s.status !== 'DEACTIVATED' && 
+        s.id !== id
+      );
+      
+      if (conflict) {
+        console.log(`Mock Replacement: Deactivating old SIM ${conflict.iccid}`);
+        await this.deactivateSimCard(
+          conflict.id, 
+          installationDate, 
+          "Auto-deactivated due to SIM Replacement",
+          "SIM_REPLACED"
+        );
+      }
+    }
+
     return this.updateSimCard(id, {
       status: 'INSTALLED',
       installation_date: installationDate,
@@ -383,11 +429,12 @@ export const simService = {
     });
   },
 
-  async deactivateSimCard(id: string, deactivationDate: string, reason?: string): Promise<SimCard> {
+  async deactivateSimCard(id: string, deactivationDate: string, reason?: string, replacementReason?: string): Promise<SimCard> {
     return this.updateSimCard(id, {
       status: 'DEACTIVATED',
       deactivation_date: deactivationDate,
-      notes: reason ? `${reason}` : undefined
+      notes: reason ? `${reason}` : undefined,
+      replacement_reason: replacementReason || null
     });
   }
 };

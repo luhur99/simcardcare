@@ -115,9 +115,11 @@ export default function SimCardsPage() {
         installation_date: null,
         deactivation_date: null,
         billing_cycle_day: null,
-        monthly_cost: formData.monthly_cost ? parseFloat(formData.monthly_cost) : null,
+        monthly_cost: Number(formData.monthly_cost) || 0,
         accumulated_cost: 0,
-        notes: formData.notes || null
+        notes: formData.notes || null,
+        is_reactivated: false,
+        replacement_reason: null
       };
 
       await simService.createSimCard(newSim);
