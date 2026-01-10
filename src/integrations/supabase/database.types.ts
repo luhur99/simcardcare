@@ -240,6 +240,8 @@ export type Database = {
           deactivation_date: string | null
           deactivation_reason: string | null
           free_pulsa_months: number | null
+          grace_period_due_date: string | null
+          grace_period_start_date: string | null
           iccid: string | null
           id: string
           installation_date: string | null
@@ -262,6 +264,8 @@ export type Database = {
           deactivation_date?: string | null
           deactivation_reason?: string | null
           free_pulsa_months?: number | null
+          grace_period_due_date?: string | null
+          grace_period_start_date?: string | null
           iccid?: string | null
           id?: string
           installation_date?: string | null
@@ -284,6 +288,8 @@ export type Database = {
           deactivation_date?: string | null
           deactivation_reason?: string | null
           free_pulsa_months?: number | null
+          grace_period_due_date?: string | null
+          grace_period_start_date?: string | null
           iccid?: string | null
           id?: string
           installation_date?: string | null

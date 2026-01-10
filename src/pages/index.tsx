@@ -55,7 +55,7 @@ const statusLabels: Record<VisibleStatus, string> = {
   DEACTIVATED: "Deactivated",
 };
 
-type ActionType = "activate" | "install" | "deactivate" | "reactivate";
+type ActionType = "activate" | "install" | "deactivate" | "reactivate" | "grace_period";
 
 export default function Home() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
@@ -75,6 +75,7 @@ export default function Home() {
     imei: "",
     reason: "",
     freePulsaMonths: 1,
+    grace_period_due_date: "",
   });
 
   useEffect(() => {
@@ -131,7 +132,7 @@ export default function Home() {
       date: new Date().toISOString().split("T")[0],
       imei: sim.current_imei || "",
       reason: "",
-      freePulsaMonths: 0,
+      freePulsaMonths: 1,
     });
   };
 
@@ -182,6 +183,7 @@ export default function Home() {
   const canInstall = (sim: SimCard) => sim.status === "ACTIVATED";
   const canDeactivate = (sim: SimCard) =>
     sim.status !== "DEACTIVATED" && sim.status !== "WAREHOUSE";
+  const canEnterGracePeriod = (sim: SimCard) => sim.status === "INSTALLED";
 
   const statusCounts = {
     ALL: simCards?.length || 0,
@@ -372,6 +374,7 @@ export default function Home() {
                 {actionDialog.type === "reactivate" && "Reaktivasi Kartu SIM"}
                 {actionDialog.type === "install" && "Instalasi Kartu SIM"}
                 {actionDialog.type === "deactivate" && "Non-aktifkan Kartu SIM"}
+                {actionDialog.type === "grace_period" && "Masukkan Ke Periode Pengingat"}
               </DialogTitle>
               <DialogDescription>
                 {actionDialog.sim && (

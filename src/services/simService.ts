@@ -474,5 +474,29 @@ export const simService = {
       notes: reason ? `${reason}` : undefined,
       replacement_reason: replacementReason || null
     });
+  },
+
+  async enterGracePeriod(id: string, gracePeriodStartDate: string): Promise<SimCard> {
+    // Check previous status for Reactivation logic
+    const currentSim = await this.getSimCardById(id);
+    const isReactivation = currentSim?.status === 'DEACTIVATED';
+
+    return this.updateSimCard(id, {
+      status: 'GRACE_PERIOD',
+      activation_date: gracePeriodStartDate,
+      is_reactivated: isReactivation
+    });
+  },
+
+  async reactivateFromGracePeriod(id: string, activationDate: string): Promise<SimCard> {
+    // Check previous status for Reactivation logic
+    const currentSim = await this.getSimCardById(id);
+    const isReactivation = currentSim?.status === 'DEACTIVATED';
+
+    return this.updateSimCard(id, {
+      status: 'ACTIVATED',
+      activation_date: activationDate,
+      is_reactivated: isReactivation
+    });
   }
 };
