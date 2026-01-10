@@ -10,33 +10,46 @@ import {
   AlertCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useState, useEffect } from "react";
+import { simService } from "@/services/simService";
 
 export default function Home() {
-  const stats = [
+  const [stats, setStats] = useState({
+    totalSims: 0,
+    activeDevices: 0,
+    customers: 0,
+    warehouse: 0
+  });
+
+  useEffect(() => {
+    simService.getStats().then(setStats);
+  }, []);
+
+  const statsCards = [
     {
       title: "Total SIM Cards",
-      value: "2",
+      value: stats.totalSims.toString(),
       change: "+0 this month",
       icon: CreditCard,
       color: "text-blue-600"
     },
     {
       title: "Active Devices",
-      value: "2",
+      value: stats.activeDevices.toString(),
       change: "+0 this month",
       icon: Smartphone,
       color: "text-green-600"
     },
     {
       title: "Customers",
-      value: "2",
+      value: stats.customers.toString(),
       change: "+0 this month",
       icon: Users,
       color: "text-purple-600"
     },
     {
       title: "In Warehouse",
-      value: "2",
+      value: stats.warehouse.toString(),
       change: "Ready to activate",
       icon: Activity,
       color: "text-orange-600"
@@ -107,7 +120,7 @@ export default function Home() {
 
         {/* Stats Grid */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
+          {statsCards.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
