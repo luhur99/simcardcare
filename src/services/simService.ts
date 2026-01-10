@@ -417,7 +417,7 @@ export const simService = {
     });
   },
 
-  async installSimCard(id: string, installationDate: string, imei: string): Promise<SimCard> {
+  async installSimCard(id: string, installationDate: string, imei: string, freePulsaMonths?: number): Promise<SimCard> {
     // REPLACEMENT LOGIC: Check for existing active SIM on this IMEI
     if (isSupabaseConnected()) {
       const { data: existingSims } = await supabase
