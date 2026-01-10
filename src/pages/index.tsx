@@ -54,7 +54,7 @@ const statusLabels: Record<SimStatus, string> = {
   DEACTIVATED: "Deactivated",
 };
 
-type ActionType = "activate" | "install" | "deactivate";
+type ActionType = "activate" | "install" | "deactivate" | "reactivate";
 
 export default function Home() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
@@ -142,6 +142,9 @@ export default function Home() {
         case "activate":
           await simService.activateSimCard(simId, actionData.date);
           break;
+        case "reactivate":
+          await simService.activateSimCard(simId, actionData.date);
+          break;
         case "install":
           if (!actionData.imei) {
             alert("IMEI wajib diisi untuk instalasi!");
@@ -162,6 +165,7 @@ export default function Home() {
   };
 
   const canActivate = (sim: SimCard) => sim.status === "WAREHOUSE";
+  const canReactivate = (sim: SimCard) => sim.status === "DEACTIVATED";
   const canInstall = (sim: SimCard) => sim.status === "ACTIVATED";
   const canDeactivate = (sim: SimCard) =>
     sim.status !== "DEACTIVATED" && sim.status !== "WAREHOUSE";
@@ -302,6 +306,17 @@ export default function Home() {
                                   Aktivasi
                                 </Button>
                               )}
+                              {canReactivate(sim) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openActionDialog("reactivate", sim)}
+                                  className="h-8"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Reaktivasi
+                                </Button>
+                              )}
                               {canInstall(sim) && (
                                 <Button
                                   size="sm"
@@ -342,6 +357,7 @@ export default function Home() {
             <DialogHeader>
               <DialogTitle>
                 {actionDialog.type === "activate" && "Aktivasi Kartu SIM"}
+                {actionDialog.type === "reactivate" && "Reaktivasi Kartu SIM"}
                 {actionDialog.type === "install" && "Instalasi Kartu SIM"}
                 {actionDialog.type === "deactivate" && "Non-aktifkan Kartu SIM"}
               </DialogTitle>
@@ -396,6 +412,7 @@ export default function Home() {
               </Button>
               <Button onClick={handleQuickAction}>
                 {actionDialog.type === "activate" && "Aktivasi"}
+                {actionDialog.type === "reactivate" && "Reaktivasi"}
                 {actionDialog.type === "install" && "Instalasi"}
                 {actionDialog.type === "deactivate" && "Non-aktifkan"}
               </Button>
