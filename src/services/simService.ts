@@ -288,7 +288,7 @@ export const simService = {
         .from('daily_burden_log')
         .select('*')
         .eq('sim_card_id', simCardId)
-        .order('calculated_at', { ascending: false });
+        .order('calculation_date', { ascending: false });
       if (error) throw error;
       return data as DailyBurdenLog[];
     } else {
@@ -310,7 +310,7 @@ export const simService = {
           daily_rate: (sim.monthly_cost || 0) / 30,
           total_cost: burden.overlap_1_cost,
           description: "Biaya overlap: Aktivasi → Instalasi",
-          calculated_at: new Date().toISOString()
+          calculation_date: new Date().toISOString()
         });
       }
 
@@ -331,7 +331,7 @@ export const simService = {
           daily_rate: (sim.monthly_cost || 0) / 30,
           total_cost: burden.overlap_2_cost,
           description: "Biaya overlap: Jatuh Tempo → Deaktivasi",
-          calculated_at: new Date().toISOString()
+          calculation_date: new Date().toISOString()
         });
       }
 

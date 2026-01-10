@@ -93,7 +93,7 @@ export interface DailyBurdenLog {
   daily_rate: number;
   total_cost: number;
   description: string | null;
-  calculated_at: string;
+  calculation_date: string;
 }
 
 export interface DailyBurdenResult {
