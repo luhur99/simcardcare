@@ -41,7 +41,6 @@ const statusColors: Record<SimStatus, { bg: string; text: string; border: string
   WAREHOUSE: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
   ACTIVATED: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300" },
   INSTALLED: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
-  BILLING: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
   GRACE_PERIOD: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
   DEACTIVATED: { bg: "bg-red-100", text: "text-red-700", border: "border-red-300" },
 };
@@ -50,7 +49,6 @@ const statusLabels: Record<SimStatus, string> = {
   WAREHOUSE: "Warehouse",
   ACTIVATED: "Activated",
   INSTALLED: "Installed",
-  BILLING: "Billing",
   GRACE_PERIOD: "Grace Period",
   DEACTIVATED: "Deactivated",
 };
@@ -183,7 +181,6 @@ export default function Home() {
     WAREHOUSE: simCards.filter((s) => s.status === "WAREHOUSE").length,
     ACTIVATED: simCards.filter((s) => s.status === "ACTIVATED").length,
     INSTALLED: simCards.filter((s) => s.status === "INSTALLED").length,
-    BILLING: simCards.filter((s) => s.status === "BILLING").length,
     GRACE_PERIOD: simCards.filter((s) => s.status === "GRACE_PERIOD").length,
     DEACTIVATED: simCards.filter((s) => s.status === "DEACTIVATED").length,
   };
