@@ -42,11 +42,12 @@ export interface SimCard {
 export interface Device {
   id: string;
   imei: string;
-  device_model: string | null;
-  manufacturer: string | null;
-  purchase_date: string | null;
-  warranty_expiry: string | null;
-  notes: string | null;
+  device_type: string | null;
+  brand: string | null;
+  model: string | null;
+  serial_number: string | null;
+  status: string | null;
+  customer_id: string | null;
   created_at: string;
   updated_at: string;
 }

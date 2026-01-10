@@ -35,8 +35,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Edit, Smartphone, Link as LinkIcon } from "lucide-react";
-import { isSupabaseConnected } from "@/lib/supabase";
+import { Plus, Search, Edit, Smartphone } from "lucide-react";
+import { supabase, isSupabaseConnected } from "@/lib/supabase";
 import type { Device } from "@/lib/supabase";
 
 // Mock device service for localStorage mode
@@ -52,30 +52,36 @@ const mockDeviceService = {
       {
         id: "dev-1",
         imei: "123456789012345",
+        device_type: "GPS Tracker",
+        brand: "TechCorp",
         model: "GPS Tracker V1",
-        manufacturer: "TechCorp",
-        purchase_date: "2025-01-15",
-        status: "active",
+        serial_number: "SN-001",
+        status: "AVAILABLE",
+        customer_id: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
       {
         id: "dev-2",
         imei: "987654321098765",
+        device_type: "Fleet Monitor",
+        brand: "FleetTech",
         model: "Fleet Monitor Pro",
-        manufacturer: "FleetTech",
-        purchase_date: "2025-02-20",
-        status: "active",
+        serial_number: "SN-002",
+        status: "IN_USE",
+        customer_id: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
       {
         id: "dev-3",
         imei: "456789123456789",
+        device_type: "GPS Tracker",
+        brand: "TechCorp",
         model: "GPS Tracker V2",
-        manufacturer: "TechCorp",
-        purchase_date: "2024-12-10",
-        status: "inactive",
+        serial_number: "SN-003",
+        status: "MAINTENANCE",
+        customer_id: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },
@@ -118,7 +124,7 @@ export default function DevicesPage() {
   const [filteredDevices, setFilteredDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -128,10 +134,11 @@ export default function DevicesPage() {
   // Form states
   const [formData, setFormData] = useState({
     imei: "",
+    device_type: "",
+    brand: "",
     model: "",
-    manufacturer: "",
-    purchase_date: "",
-    status: "active" as "active" | "inactive",
+    serial_number: "",
+    status: "AVAILABLE",
   });
 
   useEffect(() => {
@@ -146,17 +153,22 @@ export default function DevicesPage() {
     setLoading(true);
     try {
       if (isSupabaseConnected()) {
-        // TODO: Implement Supabase query when backend is ready
-        // const { data } = await supabase.from("devices").select("*");
-        // setDevices(data || []);
-        const mockData = await mockDeviceService.getDevices();
-        setDevices(mockData);
+        const { data, error } = await supabase
+          .from("devices")
+          .select("*")
+          .order("created_at", { ascending: false });
+        
+        if (error) throw error;
+        setDevices(data || []);
       } else {
         const mockData = await mockDeviceService.getDevices();
         setDevices(mockData);
       }
     } catch (error) {
       console.error("Error loading devices:", error);
+      // Fallback to mock data on error
+      const mockData = await mockDeviceService.getDevices();
+      setDevices(mockData);
     } finally {
       setLoading(false);
     }
@@ -176,8 +188,9 @@ export default function DevicesPage() {
       filtered = filtered.filter(
         (d) =>
           d.imei.toLowerCase().includes(query) ||
-          d.model.toLowerCase().includes(query) ||
-          d.manufacturer.toLowerCase().includes(query)
+          (d.model && d.model.toLowerCase().includes(query)) ||
+          (d.brand && d.brand.toLowerCase().includes(query)) ||
+          (d.device_type && d.device_type.toLowerCase().includes(query))
       );
     }
 
@@ -187,10 +200,11 @@ export default function DevicesPage() {
   const openAddDialog = () => {
     setFormData({
       imei: "",
+      device_type: "",
+      brand: "",
       model: "",
-      manufacturer: "",
-      purchase_date: new Date().toISOString().split("T")[0],
-      status: "active",
+      serial_number: "",
+      status: "AVAILABLE",
     });
     setAddDialogOpen(true);
   };
@@ -199,10 +213,11 @@ export default function DevicesPage() {
     setSelectedDevice(device);
     setFormData({
       imei: device.imei,
-      model: device.model,
-      manufacturer: device.manufacturer,
-      purchase_date: device.purchase_date || "",
-      status: device.status,
+      device_type: device.device_type || "",
+      brand: device.brand || "",
+      model: device.model || "",
+      serial_number: device.serial_number || "",
+      status: device.status || "AVAILABLE",
     });
     setEditDialogOpen(true);
   };
@@ -210,10 +225,26 @@ export default function DevicesPage() {
   const handleAddDevice = async () => {
     try {
       if (isSupabaseConnected()) {
-        // TODO: Implement Supabase insert
-        await mockDeviceService.addDevice(formData);
+        const { error } = await supabase.from("devices").insert([
+          {
+            ...formData,
+            device_type: formData.device_type || null,
+            brand: formData.brand || null,
+            model: formData.model || null,
+            serial_number: formData.serial_number || null,
+          },
+        ]);
+        
+        if (error) throw error;
       } else {
-        await mockDeviceService.addDevice(formData);
+        await mockDeviceService.addDevice({
+          ...formData,
+          device_type: formData.device_type || null,
+          brand: formData.brand || null,
+          model: formData.model || null,
+          serial_number: formData.serial_number || null,
+          customer_id: null,
+        });
       }
       await loadDevices();
       setAddDialogOpen(false);
@@ -228,16 +259,59 @@ export default function DevicesPage() {
     
     try {
       if (isSupabaseConnected()) {
-        // TODO: Implement Supabase update
-        await mockDeviceService.updateDevice(selectedDevice.id, formData);
+        const { error } = await supabase
+          .from("devices")
+          .update({
+            device_type: formData.device_type || null,
+            brand: formData.brand || null,
+            model: formData.model || null,
+            serial_number: formData.serial_number || null,
+            status: formData.status,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", selectedDevice.id);
+        
+        if (error) throw error;
       } else {
-        await mockDeviceService.updateDevice(selectedDevice.id, formData);
+        await mockDeviceService.updateDevice(selectedDevice.id, {
+          device_type: formData.device_type || null,
+          brand: formData.brand || null,
+          model: formData.model || null,
+          serial_number: formData.serial_number || null,
+          status: formData.status,
+        });
       }
       await loadDevices();
       setEditDialogOpen(false);
     } catch (error) {
       console.error("Error updating device:", error);
       alert("Failed to update device.");
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string | null) => {
+    switch (status) {
+      case "AVAILABLE":
+        return "default";
+      case "IN_USE":
+        return "secondary";
+      case "MAINTENANCE":
+        return "destructive";
+      default:
+        return "outline";
+    }
+  };
+
+  const getStatusLabel = (status: string | null) => {
+    switch (status) {
+      case "AVAILABLE":
+        return "Available";
+      case "IN_USE":
+        return "In Use";
+      case "MAINTENANCE":
+        return "Maintenance";
+      default:
+        return status || "Unknown";
     }
   };
 
@@ -280,30 +354,30 @@ export default function DevicesPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Devices</CardTitle>
+              <CardTitle className="text-sm font-medium">Available</CardTitle>
               <Smartphone className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {devices.filter((d) => d.status === "active").length}
+                {devices.filter((d) => d.status === "AVAILABLE").length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Currently in use
+                Ready to use
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inactive Devices</CardTitle>
-              <Smartphone className="h-4 w-4 text-gray-400" />
+              <CardTitle className="text-sm font-medium">In Use</CardTitle>
+              <Smartphone className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {devices.filter((d) => d.status === "inactive").length}
+                {devices.filter((d) => d.status === "IN_USE").length}
               </div>
               <p className="text-xs text-muted-foreground">
-                Not in use
+                Currently deployed
               </p>
             </CardContent>
           </Card>
@@ -325,7 +399,7 @@ export default function DevicesPage() {
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="Search IMEI, model, or manufacturer..."
+                    placeholder="Search IMEI, model, brand, or type..."
                     className="pl-8"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -337,17 +411,16 @@ export default function DevicesPage() {
                 <Label htmlFor="status-filter">Status</Label>
                 <Select
                   value={statusFilter}
-                  onValueChange={(value: "all" | "active" | "inactive") =>
-                    setStatusFilter(value)
-                  }
+                  onValueChange={(value) => setStatusFilter(value)}
                 >
                   <SelectTrigger id="status-filter">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="AVAILABLE">Available</SelectItem>
+                    <SelectItem value="IN_USE">In Use</SelectItem>
+                    <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -386,9 +459,10 @@ export default function DevicesPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>IMEI</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Brand</TableHead>
                       <TableHead>Model</TableHead>
-                      <TableHead>Manufacturer</TableHead>
-                      <TableHead>Purchase Date</TableHead>
+                      <TableHead>Serial Number</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -399,24 +473,15 @@ export default function DevicesPage() {
                         <TableCell className="font-mono text-sm">
                           {device.imei}
                         </TableCell>
-                        <TableCell>{device.model}</TableCell>
-                        <TableCell>{device.manufacturer}</TableCell>
-                        <TableCell>
-                          {device.purchase_date
-                            ? new Date(device.purchase_date).toLocaleDateString(
-                                "id-ID"
-                              )
-                            : "-"}
+                        <TableCell>{device.device_type || "-"}</TableCell>
+                        <TableCell>{device.brand || "-"}</TableCell>
+                        <TableCell>{device.model || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm">
+                          {device.serial_number || "-"}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              device.status === "active"
-                                ? "default"
-                                : "secondary"
-                            }
-                          >
-                            {device.status === "active" ? "Active" : "Inactive"}
+                          <Badge variant={getStatusBadgeVariant(device.status)}>
+                            {getStatusLabel(device.status)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -455,7 +520,7 @@ export default function DevicesPage() {
               <Input
                 id="add-imei"
                 placeholder="15-digit IMEI number"
-                maxLength={15}
+                maxLength={20}
                 value={formData.imei}
                 onChange={(e) =>
                   setFormData({ ...formData, imei: e.target.value })
@@ -464,7 +529,31 @@ export default function DevicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="add-model">Model *</Label>
+              <Label htmlFor="add-device-type">Device Type</Label>
+              <Input
+                id="add-device-type"
+                placeholder="e.g., GPS Tracker, Fleet Monitor"
+                value={formData.device_type}
+                onChange={(e) =>
+                  setFormData({ ...formData, device_type: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-brand">Brand</Label>
+              <Input
+                id="add-brand"
+                placeholder="e.g., TechCorp, FleetTech"
+                value={formData.brand}
+                onChange={(e) =>
+                  setFormData({ ...formData, brand: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="add-model">Model</Label>
               <Input
                 id="add-model"
                 placeholder="e.g., GPS Tracker V1"
@@ -476,25 +565,13 @@ export default function DevicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="add-manufacturer">Manufacturer *</Label>
+              <Label htmlFor="add-serial">Serial Number</Label>
               <Input
-                id="add-manufacturer"
-                placeholder="e.g., TechCorp"
-                value={formData.manufacturer}
+                id="add-serial"
+                placeholder="e.g., SN-001"
+                value={formData.serial_number}
                 onChange={(e) =>
-                  setFormData({ ...formData, manufacturer: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="add-purchase-date">Purchase Date</Label>
-              <Input
-                id="add-purchase-date"
-                type="date"
-                value={formData.purchase_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, purchase_date: e.target.value })
+                  setFormData({ ...formData, serial_number: e.target.value })
                 }
               />
             </div>
@@ -503,7 +580,7 @@ export default function DevicesPage() {
               <Label htmlFor="add-status">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: "active" | "inactive") =>
+                onValueChange={(value) =>
                   setFormData({ ...formData, status: value })
                 }
               >
@@ -511,8 +588,9 @@ export default function DevicesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="AVAILABLE">Available</SelectItem>
+                  <SelectItem value="IN_USE">In Use</SelectItem>
+                  <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -543,11 +621,8 @@ export default function DevicesPage() {
               <Input
                 id="edit-imei"
                 placeholder="15-digit IMEI number"
-                maxLength={15}
+                maxLength={20}
                 value={formData.imei}
-                onChange={(e) =>
-                  setFormData({ ...formData, imei: e.target.value })
-                }
                 disabled
               />
               <p className="text-xs text-muted-foreground">
@@ -556,7 +631,31 @@ export default function DevicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-model">Model *</Label>
+              <Label htmlFor="edit-device-type">Device Type</Label>
+              <Input
+                id="edit-device-type"
+                placeholder="e.g., GPS Tracker, Fleet Monitor"
+                value={formData.device_type}
+                onChange={(e) =>
+                  setFormData({ ...formData, device_type: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-brand">Brand</Label>
+              <Input
+                id="edit-brand"
+                placeholder="e.g., TechCorp, FleetTech"
+                value={formData.brand}
+                onChange={(e) =>
+                  setFormData({ ...formData, brand: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-model">Model</Label>
               <Input
                 id="edit-model"
                 placeholder="e.g., GPS Tracker V1"
@@ -568,25 +667,13 @@ export default function DevicesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-manufacturer">Manufacturer *</Label>
+              <Label htmlFor="edit-serial">Serial Number</Label>
               <Input
-                id="edit-manufacturer"
-                placeholder="e.g., TechCorp"
-                value={formData.manufacturer}
+                id="edit-serial"
+                placeholder="e.g., SN-001"
+                value={formData.serial_number}
                 onChange={(e) =>
-                  setFormData({ ...formData, manufacturer: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-purchase-date">Purchase Date</Label>
-              <Input
-                id="edit-purchase-date"
-                type="date"
-                value={formData.purchase_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, purchase_date: e.target.value })
+                  setFormData({ ...formData, serial_number: e.target.value })
                 }
               />
             </div>
@@ -595,7 +682,7 @@ export default function DevicesPage() {
               <Label htmlFor="edit-status">Status</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value: "active" | "inactive") =>
+                onValueChange={(value) =>
                   setFormData({ ...formData, status: value })
                 }
               >
@@ -603,8 +690,9 @@ export default function DevicesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="AVAILABLE">Available</SelectItem>
+                  <SelectItem value="IN_USE">In Use</SelectItem>
+                  <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
                 </SelectContent>
               </Select>
             </div>
