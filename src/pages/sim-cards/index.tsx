@@ -139,7 +139,10 @@ export default function SimCardsPage() {
         accumulated_cost: 0,
         notes: formData.notes || null,
         is_reactivated: false,
-        replacement_reason: null
+        replacement_reason: null,
+        free_pulsa_months: null,
+        grace_period_start_date: null,
+        grace_period_due_date: null
       };
 
       await simService.createSimCard(newSim);

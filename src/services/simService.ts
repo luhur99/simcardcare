@@ -95,6 +95,9 @@ const MOCK_SIMS: SimCard[] = [
     notes: "Batch 1 - Test with overlap calculation",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    free_pulsa_months: null,
+    grace_period_start_date: null,
+    grace_period_due_date: null,
   },
   {
     id: "2",
@@ -116,6 +119,9 @@ const MOCK_SIMS: SimCard[] = [
     notes: "Batch 1 - Waiting installation",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    free_pulsa_months: null,
+    grace_period_start_date: null,
+    grace_period_due_date: null,
   },
   {
     id: "3",
@@ -137,6 +143,9 @@ const MOCK_SIMS: SimCard[] = [
     notes: "Deactivated card without ICCID",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+    free_pulsa_months: null,
+    grace_period_start_date: null,
+    grace_period_due_date: null,
   }
 ];
 
