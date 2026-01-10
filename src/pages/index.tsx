@@ -34,7 +34,7 @@ import {
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
-import { Select } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Status color mapping
 const statusColors: Record<SimStatus, { bg: string; text: string; border: string }> = {
@@ -74,7 +74,7 @@ export default function Home() {
     date: new Date().toISOString().split("T")[0],
     imei: "",
     reason: "",
-    freePulsaMonths: 0,
+    freePulsaMonths: 1,
   });
 
   useEffect(() => {
@@ -153,7 +153,12 @@ export default function Home() {
             alert("IMEI wajib diisi untuk instalasi!");
             return;
           }
-          await simService.installSimCard(simId, actionData.date, actionData.imei, actionData.freePulsaMonths);
+          await simService.installSimCard(
+            simId, 
+            actionData.date, 
+            actionData.imei, 
+            actionData.freePulsaMonths
+          );
           break;
         case "deactivate":
           await simService.deactivateSimCard(simId, actionData.date, actionData.reason);
@@ -403,24 +408,21 @@ export default function Home() {
                 <div className="space-y-2">
                   <Label htmlFor="action-free-pulsa-months">Bulan Free Pulsa</Label>
                   <Select
-                    id="action-free-pulsa-months"
-                    value={actionData.freePulsaMonths}
-                    onChange={(e) => setActionData({ ...actionData, freePulsaMonths: parseInt(e.target.value, 10) || 0 })}
+                    value={actionData.freePulsaMonths.toString()}
+                    onValueChange={(value) => setActionData({ ...actionData, freePulsaMonths: parseInt(value) })}
                   >
-                    <option value="0">0 Bulan</option>
-                    <option value="1">1 Bulan</option>
-                    <option value="2">2 Bulan</option>
-                    <option value="3">3 Bulan</option>
-                    <option value="4">4 Bulan</option>
-                    <option value="5">5 Bulan</option>
-                    <option value="6">6 Bulan</option>
-                    <option value="7">7 Bulan</option>
-                    <option value="8">8 Bulan</option>
-                    <option value="9">9 Bulan</option>
-                    <option value="10">10 Bulan</option>
-                    <option value="11">11 Bulan</option>
-                    <option value="12">12 Bulan</option>
+                    <SelectTrigger id="action-free-pulsa-months">
+                      <SelectValue placeholder="Pilih durasi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 Bulan</SelectItem>
+                      <SelectItem value="2">2 Bulan</SelectItem>
+                      <SelectItem value="3">3 Bulan</SelectItem>
+                    </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Biaya free pulsa akan dihitung berdasarkan durasi ini.
+                  </p>
                 </div>
               )}
 

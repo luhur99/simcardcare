@@ -462,7 +462,8 @@ export const simService = {
     return this.updateSimCard(id, {
       status: 'INSTALLED',
       installation_date: installationDate,
-      current_imei: imei
+      current_imei: imei,
+      free_pulsa_months: freePulsaMonths
     });
   },
 
