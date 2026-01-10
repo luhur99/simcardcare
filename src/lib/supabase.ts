@@ -19,7 +19,7 @@ export interface SimCard {
   iccid: string;
   phone_number: string | null;
   provider: string;
-  plan_type: string | null;
+  plan_name: string | null;
   status: SimStatus;
   current_imei: string | null;
   activation_date: string | null;
