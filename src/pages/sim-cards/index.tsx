@@ -232,7 +232,6 @@ export default function SimCardsPage() {
             ? status 
             : "WAREHOUSE",
           current_imei: null,
-          customer_id: null,
           monthly_cost: monthlyCost ? parseFloat(monthlyCost.replace(/[^0-9.-]/g, "")) : 0,
           activation_date: null,
           installation_date: null,

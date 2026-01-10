@@ -149,7 +149,6 @@ const MOCK_DEVICES: Device[] = [
     device_type: "Smartphone",
     serial_number: "SN123456",
     status: "AVAILABLE",
-    customer_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -161,7 +160,6 @@ const MOCK_DEVICES: Device[] = [
     device_type: "Smartphone",
     serial_number: "SN987654",
     status: "IN_USE",
-    customer_id: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
