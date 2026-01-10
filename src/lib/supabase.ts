@@ -23,8 +23,11 @@ export interface SimCard {
   status: SimStatus;
   current_imei: string | null;
   activation_date: string | null;
+  installation_date: string | null;
+  deactivation_date: string | null;
   billing_cycle_day: number | null;
   monthly_cost: number | null;
+  accumulated_cost: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -76,4 +79,25 @@ export interface StatusHistory {
   changed_by: string | null;
   reason: string | null;
   changed_at: string;
+}
+
+export interface DailyBurdenLog {
+  id: string;
+  sim_card_id: string;
+  calculation_type: string;
+  start_date: string;
+  end_date: string;
+  days_count: number;
+  daily_rate: number;
+  total_cost: number;
+  description: string | null;
+  calculated_at: string;
+}
+
+export interface DailyBurdenResult {
+  overlap_1_days: number;
+  overlap_1_cost: number;
+  overlap_2_days: number;
+  overlap_2_cost: number;
+  total_burden: number;
 }

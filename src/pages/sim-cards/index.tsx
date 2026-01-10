@@ -29,10 +29,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Filter, Download } from "lucide-react";
+import { Plus, Search, Filter, Download, Eye } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
+import Link from "next/link";
 
 const STATUS_COLORS: Record<SimStatus, string> = {
   WAREHOUSE: "bg-gray-500",
@@ -139,11 +140,12 @@ export default function SimCardsPage() {
   };
 
   const formatCurrency = (amount: number | null) => {
-    if (!amount) return "-";
+    if (amount === null || amount === undefined) return "Rp 0";
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
-      minimumFractionDigits: 0
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
@@ -365,7 +367,9 @@ export default function SimCardsPage() {
                       <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>IMEI</TableHead>
-                      <TableHead className="text-right">Monthly Cost</TableHead>
+                      <TableHead>Biaya Bulanan</TableHead>
+                      <TableHead>Akumulasi Biaya</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -387,8 +391,19 @@ export default function SimCardsPage() {
                         <TableCell className="font-mono text-sm">
                           {sim.current_imei || "-"}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="font-medium">
                           {formatCurrency(sim.monthly_cost)}
+                        </TableCell>
+                        <TableCell className="font-bold text-primary">
+                          {formatCurrency(sim.accumulated_cost)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Link href={`/sim-cards/${sim.id}`}>
+                            <Button variant="ghost" size="sm">
+                              <Eye className="h-4 w-4 mr-2" />
+                              Detail
+                            </Button>
+                          </Link>
                         </TableCell>
                       </TableRow>
                     ))}

@@ -49,8 +49,11 @@ CREATE TABLE sim_cards (
   status sim_status NOT NULL DEFAULT 'WAREHOUSE',
   current_imei VARCHAR(15),
   activation_date DATE,
+  installation_date DATE,
+  deactivation_date DATE,
   billing_cycle_day INTEGER,
-  monthly_cost DECIMAL(10, 2),
+  monthly_cost DECIMAL(10, 2) DEFAULT 0,
+  accumulated_cost DECIMAL(12, 2) DEFAULT 0,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -88,10 +91,178 @@ CREATE TABLE status_history (
   FOREIGN KEY (sim_card_id) REFERENCES sim_cards(id) ON DELETE CASCADE
 );
 
+-- Daily Burden Calculation Log Table
+CREATE TABLE daily_burden_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sim_card_id UUID NOT NULL,
+  calculation_type VARCHAR(50) NOT NULL, -- 'OVERLAP_1' or 'OVERLAP_2'
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  days_count INTEGER NOT NULL,
+  daily_rate DECIMAL(10, 2) NOT NULL,
+  total_cost DECIMAL(12, 2) NOT NULL,
+  description TEXT,
+  calculated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  FOREIGN KEY (sim_card_id) REFERENCES sim_cards(id) ON DELETE CASCADE
+);
+
 -- CRITICAL: Unique Index for IMEI Constraint
 -- Ensures no two active SIM cards can use the same IMEI
 CREATE UNIQUE INDEX unique_active_imei ON sim_cards(current_imei) 
 WHERE status != 'DEACTIVATED' AND current_imei IS NOT NULL;
+
+-- Function to calculate daily burden (Daily Rate = monthly_cost / 30)
+CREATE OR REPLACE FUNCTION calculate_daily_burden(
+  p_sim_card_id UUID
+)
+RETURNS TABLE(
+  overlap_1_days INTEGER,
+  overlap_1_cost DECIMAL(12, 2),
+  overlap_2_days INTEGER,
+  overlap_2_cost DECIMAL(12, 2),
+  total_burden DECIMAL(12, 2)
+) AS $$
+DECLARE
+  v_monthly_cost DECIMAL(10, 2);
+  v_daily_rate DECIMAL(10, 2);
+  v_activation_date DATE;
+  v_installation_date DATE;
+  v_deactivation_date DATE;
+  v_billing_cycle_day INTEGER;
+  v_due_date DATE;
+  v_overlap_1_days INTEGER := 0;
+  v_overlap_1_cost DECIMAL(12, 2) := 0;
+  v_overlap_2_days INTEGER := 0;
+  v_overlap_2_cost DECIMAL(12, 2) := 0;
+BEGIN
+  -- Get SIM card details
+  SELECT 
+    monthly_cost, 
+    activation_date, 
+    installation_date, 
+    deactivation_date,
+    billing_cycle_day
+  INTO 
+    v_monthly_cost, 
+    v_activation_date, 
+    v_installation_date, 
+    v_deactivation_date,
+    v_billing_cycle_day
+  FROM sim_cards
+  WHERE id = p_sim_card_id;
+
+  -- Calculate daily rate
+  v_daily_rate := COALESCE(v_monthly_cost, 0) / 30.0;
+
+  -- OVERLAP 1: Activation Date → Installation Date
+  IF v_activation_date IS NOT NULL AND v_installation_date IS NOT NULL THEN
+    IF v_installation_date > v_activation_date THEN
+      v_overlap_1_days := v_installation_date - v_activation_date;
+      v_overlap_1_cost := v_overlap_1_days * v_daily_rate;
+    END IF;
+  END IF;
+
+  -- OVERLAP 2: Due Date → Deactivation Date
+  IF v_deactivation_date IS NOT NULL AND v_billing_cycle_day IS NOT NULL THEN
+    -- Calculate the due date (last billing cycle day before deactivation)
+    v_due_date := DATE_TRUNC('month', v_deactivation_date) + 
+                  INTERVAL '1 day' * (v_billing_cycle_day - 1);
+    
+    -- If due date is after deactivation, use previous month
+    IF v_due_date > v_deactivation_date THEN
+      v_due_date := (DATE_TRUNC('month', v_deactivation_date) - INTERVAL '1 month') + 
+                    INTERVAL '1 day' * (v_billing_cycle_day - 1);
+    END IF;
+
+    IF v_deactivation_date > v_due_date THEN
+      v_overlap_2_days := v_deactivation_date - v_due_date;
+      v_overlap_2_cost := v_overlap_2_days * v_daily_rate;
+    END IF;
+  END IF;
+
+  -- Return results
+  RETURN QUERY SELECT 
+    v_overlap_1_days,
+    v_overlap_1_cost,
+    v_overlap_2_days,
+    v_overlap_2_cost,
+    (v_overlap_1_cost + v_overlap_2_cost) AS total_burden;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to update accumulated cost
+CREATE OR REPLACE FUNCTION update_accumulated_cost()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_burden_result RECORD;
+BEGIN
+  -- Calculate daily burden
+  SELECT * INTO v_burden_result 
+  FROM calculate_daily_burden(NEW.id);
+
+  -- Update accumulated cost
+  NEW.accumulated_cost := COALESCE(v_burden_result.total_burden, 0);
+
+  -- Log the calculation if there's a cost
+  IF v_burden_result.overlap_1_cost > 0 THEN
+    INSERT INTO daily_burden_log (
+      sim_card_id, 
+      calculation_type, 
+      start_date, 
+      end_date, 
+      days_count, 
+      daily_rate, 
+      total_cost,
+      description
+    )
+    VALUES (
+      NEW.id,
+      'OVERLAP_1',
+      NEW.activation_date,
+      NEW.installation_date,
+      v_burden_result.overlap_1_days,
+      NEW.monthly_cost / 30.0,
+      v_burden_result.overlap_1_cost,
+      'Biaya overlap: Aktivasi → Instalasi'
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  IF v_burden_result.overlap_2_cost > 0 THEN
+    INSERT INTO daily_burden_log (
+      sim_card_id,
+      calculation_type,
+      start_date,
+      end_date,
+      days_count,
+      daily_rate,
+      total_cost,
+      description
+    )
+    VALUES (
+      NEW.id,
+      'OVERLAP_2',
+      (DATE_TRUNC('month', NEW.deactivation_date) + 
+       INTERVAL '1 day' * (NEW.billing_cycle_day - 1))::DATE,
+      NEW.deactivation_date,
+      v_burden_result.overlap_2_days,
+      NEW.monthly_cost / 30.0,
+      v_burden_result.overlap_2_cost,
+      'Biaya overlap: Jatuh Tempo → Deaktivasi'
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger to automatically calculate accumulated cost
+CREATE TRIGGER calculate_burden_trigger
+BEFORE INSERT OR UPDATE OF activation_date, installation_date, deactivation_date, monthly_cost
+ON sim_cards
+FOR EACH ROW
+EXECUTE FUNCTION update_accumulated_cost();
 
 -- Function to automatically log status changes
 CREATE OR REPLACE FUNCTION log_status_change()
@@ -145,13 +316,22 @@ CREATE INDEX idx_installations_customer ON installations(customer_id);
 CREATE INDEX idx_installations_active ON installations(is_active);
 CREATE INDEX idx_status_history_sim ON status_history(sim_card_id);
 CREATE INDEX idx_status_history_date ON status_history(changed_at);
+CREATE INDEX idx_daily_burden_sim ON daily_burden_log(sim_card_id);
+CREATE INDEX idx_daily_burden_type ON daily_burden_log(calculation_type);
 
 -- Comments for documentation
-COMMENT ON TABLE sim_cards IS 'Stores SIM card information with lifecycle status tracking';
+COMMENT ON TABLE sim_cards IS 'Stores SIM card information with lifecycle status tracking and daily burden calculation';
 COMMENT ON TABLE devices IS 'Stores device information identified by IMEI';
 COMMENT ON TABLE customers IS 'Stores customer information';
 COMMENT ON TABLE installations IS 'Tracks SIM card installations in devices';
 COMMENT ON TABLE status_history IS 'Audit log for SIM card status changes';
+COMMENT ON TABLE daily_burden_log IS 'Logs daily burden calculations for audit trail';
+
+COMMENT ON COLUMN sim_cards.monthly_cost IS 'Monthly subscription cost in Rupiah';
+COMMENT ON COLUMN sim_cards.accumulated_cost IS 'Automatically calculated total burden cost (Overlap 1 + Overlap 2)';
+COMMENT ON COLUMN sim_cards.activation_date IS 'Date when SIM card was activated';
+COMMENT ON COLUMN sim_cards.installation_date IS 'Date when SIM card was installed in device';
+COMMENT ON COLUMN sim_cards.deactivation_date IS 'Date when SIM card was deactivated';
 
 COMMENT ON CONSTRAINT unique_active_imei ON sim_cards IS 'Ensures no two active SIM cards share the same IMEI. Violation message: IMEI ini sudah terikat dengan kartu aktif lain!';
 
@@ -164,6 +344,6 @@ INSERT INTO devices (imei, device_model, manufacturer) VALUES
 ('123456789012345', 'iPhone 14 Pro', 'Apple'),
 ('987654321098765', 'Samsung Galaxy S23', 'Samsung');
 
-INSERT INTO sim_cards (iccid, phone_number, provider, plan_type, status, monthly_cost) VALUES
-('89620012345678901234', '081234567890', 'Telkomsel', 'Corporate 50GB', 'WAREHOUSE', 150000),
-('89620098765432109876', '081987654321', 'XL Axiata', 'Business Unlimited', 'WAREHOUSE', 200000);
+INSERT INTO sim_cards (iccid, phone_number, provider, plan_type, status, monthly_cost, activation_date, installation_date) VALUES
+('89620012345678901234', '081234567890', 'Telkomsel', 'Corporate 50GB', 'INSTALLED', 150000, '2026-01-01', '2026-01-05'),
+('89620098765432109876', '081987654321', 'XL Axiata', 'Business Unlimited', 'WAREHOUSE', 200000, NULL, NULL);

@@ -1,4 +1,52 @@
-import { supabase, SimCard, Device, Customer, SimStatus } from "@/lib/supabase";
+import { supabase, SimCard, Device, Customer, SimStatus, DailyBurdenResult, DailyBurdenLog } from "@/lib/supabase";
+
+// Helper to calculate daily burden (client-side for mock data)
+export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
+  const monthlyRate = sim.monthly_cost || 0;
+  const dailyRate = monthlyRate / 30;
+
+  let overlap1Days = 0;
+  let overlap1Cost = 0;
+  let overlap2Days = 0;
+  let overlap2Cost = 0;
+
+  // OVERLAP 1: Activation Date → Installation Date
+  if (sim.activation_date && sim.installation_date) {
+    const activationDate = new Date(sim.activation_date);
+    const installationDate = new Date(sim.installation_date);
+    
+    if (installationDate > activationDate) {
+      overlap1Days = Math.floor((installationDate.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+      overlap1Cost = overlap1Days * dailyRate;
+    }
+  }
+
+  // OVERLAP 2: Due Date → Deactivation Date
+  if (sim.deactivation_date && sim.billing_cycle_day) {
+    const deactivationDate = new Date(sim.deactivation_date);
+    
+    // Calculate the due date (last billing cycle day before deactivation)
+    const dueDate = new Date(deactivationDate.getFullYear(), deactivationDate.getMonth(), sim.billing_cycle_day);
+    
+    // If due date is after deactivation, use previous month
+    if (dueDate > deactivationDate) {
+      dueDate.setMonth(dueDate.getMonth() - 1);
+    }
+
+    if (deactivationDate > dueDate) {
+      overlap2Days = Math.floor((deactivationDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      overlap2Cost = overlap2Days * dailyRate;
+    }
+  }
+
+  return {
+    overlap_1_days: overlap1Days,
+    overlap_1_cost: overlap1Cost,
+    overlap_2_days: overlap2Days,
+    overlap_2_cost: overlap2Cost,
+    total_burden: overlap1Cost + overlap2Cost
+  };
+}
 
 // Mock Data for initial setup
 const MOCK_SIMS: SimCard[] = [
@@ -8,12 +56,15 @@ const MOCK_SIMS: SimCard[] = [
     phone_number: "081234567890",
     provider: "Telkomsel",
     plan_type: "Corporate 50GB",
-    status: "WAREHOUSE",
-    current_imei: null,
-    activation_date: null,
+    status: "INSTALLED",
+    current_imei: "123456789012345",
+    activation_date: "2026-01-01",
+    installation_date: "2026-01-05",
+    deactivation_date: null,
     billing_cycle_day: 1,
     monthly_cost: 150000,
-    notes: "Batch 1",
+    accumulated_cost: 20000,
+    notes: "Batch 1 - Test with overlap calculation",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -24,11 +75,32 @@ const MOCK_SIMS: SimCard[] = [
     provider: "XL Axiata",
     plan_type: "Business Unlimited",
     status: "ACTIVATED",
-    current_imei: "123456789012345",
-    activation_date: new Date().toISOString(),
+    current_imei: null,
+    activation_date: "2026-01-03",
+    installation_date: null,
+    deactivation_date: null,
     billing_cycle_day: 15,
     monthly_cost: 200000,
-    notes: "Batch 1",
+    accumulated_cost: 0,
+    notes: "Batch 1 - Waiting installation",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
+    id: "3",
+    iccid: "89620055555555555555",
+    phone_number: "081555555555",
+    provider: "Indosat",
+    plan_type: "Freedom Combo",
+    status: "DEACTIVATED",
+    current_imei: null,
+    activation_date: "2025-12-01",
+    installation_date: "2025-12-03",
+    deactivation_date: "2025-12-28",
+    billing_cycle_day: 1,
+    monthly_cost: 100000,
+    accumulated_cost: 95666.67,
+    notes: "Deactivated card with full overlap calculation",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
@@ -61,7 +133,9 @@ const MOCK_DEVICES: Device[] = [
 
 // Helper to check if Supabase is connected
 const isSupabaseConnected = () => {
-  return !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return !!url && !!key && url !== "https://placeholder.supabase.co" && key !== "placeholder";
 };
 
 // LocalStorage Keys
@@ -75,7 +149,12 @@ const STORAGE_KEYS = {
 // Initialize LocalStorage if empty
 if (typeof window !== 'undefined') {
   if (!localStorage.getItem(STORAGE_KEYS.SIMS)) {
-    localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(MOCK_SIMS));
+    // Calculate accumulated costs for mock data
+    const mockSimsWithCosts = MOCK_SIMS.map(sim => ({
+      ...sim,
+      accumulated_cost: calculateDailyBurden(sim).total_burden
+    }));
+    localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(mockSimsWithCosts));
   }
   if (!localStorage.getItem(STORAGE_KEYS.DEVICES)) {
     localStorage.setItem(STORAGE_KEYS.DEVICES, JSON.stringify(MOCK_DEVICES));
@@ -92,6 +171,17 @@ export const simService = {
       // Mock Implementation
       const data = localStorage.getItem(STORAGE_KEYS.SIMS);
       return data ? JSON.parse(data) : [];
+    }
+  },
+
+  async getSimCardById(id: string): Promise<SimCard | null> {
+    if (isSupabaseConnected()) {
+      const { data, error } = await supabase.from('sim_cards').select('*').eq('id', id).single();
+      if (error) throw error;
+      return data as SimCard;
+    } else {
+      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
+      return sims.find((s: SimCard) => s.id === id) || null;
     }
   },
 
@@ -131,11 +221,115 @@ export const simService = {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+
+      // Calculate accumulated cost
+      const burden = calculateDailyBurden(newSim);
+      newSim.accumulated_cost = burden.total_burden;
       
       const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
       sims.unshift(newSim);
       localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(sims));
       return newSim;
+    }
+  },
+
+  async updateSimCard(id: string, updates: Partial<SimCard>): Promise<SimCard> {
+    if (isSupabaseConnected()) {
+      const { data, error } = await supabase
+        .from('sim_cards')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as SimCard;
+    } else {
+      const sims: SimCard[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
+      const index = sims.findIndex(s => s.id === id);
+      
+      if (index === -1) {
+        throw new Error("SIM Card not found");
+      }
+
+      // IMEI validation for updates
+      if (updates.current_imei && updates.status !== 'DEACTIVATED') {
+        const conflict = sims.find(s => 
+          s.id !== id &&
+          s.status !== 'DEACTIVATED' && 
+          s.current_imei === updates.current_imei
+        );
+        
+        if (conflict) {
+          throw new Error("IMEI ini sudah terikat dengan kartu aktif lain!");
+        }
+      }
+
+      const updatedSim = { ...sims[index], ...updates, updated_at: new Date().toISOString() };
+      
+      // Recalculate accumulated cost
+      const burden = calculateDailyBurden(updatedSim);
+      updatedSim.accumulated_cost = burden.total_burden;
+
+      sims[index] = updatedSim;
+      localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(sims));
+      return updatedSim;
+    }
+  },
+
+  async getDailyBurdenLogs(simCardId: string): Promise<DailyBurdenLog[]> {
+    if (isSupabaseConnected()) {
+      const { data, error } = await supabase
+        .from('daily_burden_log')
+        .select('*')
+        .eq('sim_card_id', simCardId)
+        .order('calculated_at', { ascending: false });
+      if (error) throw error;
+      return data as DailyBurdenLog[];
+    } else {
+      // Mock logs based on current sim card data
+      const sim = await this.getSimCardById(simCardId);
+      if (!sim) return [];
+
+      const burden = calculateDailyBurden(sim);
+      const logs: DailyBurdenLog[] = [];
+
+      if (burden.overlap_1_cost > 0 && sim.activation_date && sim.installation_date) {
+        logs.push({
+          id: "log1",
+          sim_card_id: simCardId,
+          calculation_type: "OVERLAP_1",
+          start_date: sim.activation_date,
+          end_date: sim.installation_date,
+          days_count: burden.overlap_1_days,
+          daily_rate: (sim.monthly_cost || 0) / 30,
+          total_cost: burden.overlap_1_cost,
+          description: "Biaya overlap: Aktivasi → Instalasi",
+          calculated_at: new Date().toISOString()
+        });
+      }
+
+      if (burden.overlap_2_cost > 0 && sim.deactivation_date && sim.billing_cycle_day) {
+        const deactivationDate = new Date(sim.deactivation_date);
+        const dueDate = new Date(deactivationDate.getFullYear(), deactivationDate.getMonth(), sim.billing_cycle_day);
+        if (dueDate > deactivationDate) {
+          dueDate.setMonth(dueDate.getMonth() - 1);
+        }
+
+        logs.push({
+          id: "log2",
+          sim_card_id: simCardId,
+          calculation_type: "OVERLAP_2",
+          start_date: dueDate.toISOString().split('T')[0],
+          end_date: sim.deactivation_date,
+          days_count: burden.overlap_2_days,
+          daily_rate: (sim.monthly_cost || 0) / 30,
+          total_cost: burden.overlap_2_cost,
+          description: "Biaya overlap: Jatuh Tempo → Deaktivasi",
+          calculated_at: new Date().toISOString()
+        });
+      }
+
+      return logs;
     }
   },
   
