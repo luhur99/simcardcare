@@ -5,6 +5,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholde
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+export const isSupabaseConnected = () => {
+  return !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== "https://placeholder.supabase.co";
+};
+
 // Database Types
 export type SimStatus = 
   | "WAREHOUSE" 
@@ -81,6 +85,11 @@ export interface StatusHistory {
   changed_by: string | null;
   reason: string | null;
   changed_at: string;
+  sim_cards?: {
+    iccid: string;
+    phone_number: string | null;
+    provider: string;
+  } | null;
 }
 
 export interface DailyBurdenLog {
