@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Filter, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
@@ -44,7 +44,7 @@ const STATUS_COLORS: Record<SimStatus, string> = {
   DEACTIVATED: "bg-red-500"
 };
 
-type ActionType = "grace_period" | "reactivate" | "deactivate" | null;
+type ActionType = "activate" | "install" | "grace_period" | "reactivate" | "deactivate" | null;
 
 export default function SimCardsPage() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
@@ -69,7 +69,8 @@ export default function SimCardsPage() {
   const [actionFormData, setActionFormData] = useState({
     date: new Date().toISOString().split("T")[0],
     dueDate: "",
-    reason: ""
+    reason: "",
+    imei: ""
   });
 
   // Form State for Add SIM
@@ -195,7 +196,8 @@ export default function SimCardsPage() {
     setActionFormData({
       date: new Date().toISOString().split("T")[0],
       dueDate: "",
-      reason: ""
+      reason: "",
+      imei: sim.current_imei || ""
     });
   };
 
@@ -208,7 +210,8 @@ export default function SimCardsPage() {
     setActionFormData({
       date: new Date().toISOString().split("T")[0],
       dueDate: "",
-      reason: ""
+      reason: "",
+      imei: ""
     });
   };
 
@@ -219,6 +222,18 @@ export default function SimCardsPage() {
       const simId = actionDialog.sim.id;
 
       switch (actionDialog.type) {
+        case "activate":
+          await simService.activateSimCard(simId, actionFormData.date);
+          break;
+
+        case "install":
+          if (!actionFormData.imei) {
+            alert("IMEI wajib diisi untuk instalasi!");
+            return;
+          }
+          await simService.installSimCard(simId, actionFormData.imei, actionFormData.date);
+          break;
+
         case "grace_period":
           if (!actionFormData.dueDate) {
             alert("Batas Bayar Langganan Pulsa wajib diisi!");
@@ -389,6 +404,10 @@ export default function SimCardsPage() {
 
   const getActionDialogTitle = () => {
     switch (actionDialog.type) {
+      case "activate":
+        return "Aktivasi Kartu SIM";
+      case "install":
+        return "Instalasi Kartu SIM";
       case "grace_period":
         return "Masukkan Ke Periode Pengingat";
       case "reactivate":
@@ -402,6 +421,10 @@ export default function SimCardsPage() {
 
   const getActionDialogDescription = () => {
     switch (actionDialog.type) {
+      case "activate":
+        return "Konfirmasi aktivasi kartu SIM. Status akan berubah dari WAREHOUSE ke ACTIVATED.";
+      case "install":
+        return "Masukkan IMEI device dan tanggal instalasi untuk menginstall kartu SIM.";
       case "grace_period":
         return "Masukkan tanggal dan batas bayar langganan pulsa untuk periode pengingat.";
       case "reactivate":
@@ -411,6 +434,11 @@ export default function SimCardsPage() {
       default:
         return "";
     }
+  };
+
+  const getStatusCount = (status: SimStatus | "ALL") => {
+    if (status === "ALL") return simCards.length;
+    return simCards.filter(sim => sim.status === status).length;
   };
 
   return (
@@ -423,9 +451,9 @@ export default function SimCardsPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold">SIM Cards</h1>
+            <h1 className="text-3xl font-bold">SIM Cards Management</h1>
             <p className="text-muted-foreground">
-              Manage your SIM card inventory and status
+              Manage your SIM card inventory and lifecycle
             </p>
           </div>
           <div className="flex gap-2">
@@ -439,6 +467,88 @@ export default function SimCardsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Status Tabs Navigation */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filter by Status</CardTitle>
+            <CardDescription>Click on a status to filter SIM cards</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={statusFilter === "ALL" ? "default" : "outline"}
+                onClick={() => setStatusFilter("ALL")}
+                className="gap-2"
+              >
+                All SIM Cards
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("ALL")}
+                </Badge>
+              </Button>
+              
+              <Button
+                variant={statusFilter === "WAREHOUSE" ? "default" : "outline"}
+                onClick={() => setStatusFilter("WAREHOUSE")}
+                className="gap-2"
+              >
+                <Package className="h-4 w-4" />
+                Warehouse
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("WAREHOUSE")}
+                </Badge>
+              </Button>
+              
+              <Button
+                variant={statusFilter === "ACTIVATED" ? "default" : "outline"}
+                onClick={() => setStatusFilter("ACTIVATED")}
+                className="gap-2"
+              >
+                <PlayCircle className="h-4 w-4" />
+                Activated
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("ACTIVATED")}
+                </Badge>
+              </Button>
+              
+              <Button
+                variant={statusFilter === "INSTALLED" ? "default" : "outline"}
+                onClick={() => setStatusFilter("INSTALLED")}
+                className="gap-2"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Installed
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("INSTALLED")}
+                </Badge>
+              </Button>
+              
+              <Button
+                variant={statusFilter === "GRACE_PERIOD" ? "default" : "outline"}
+                onClick={() => setStatusFilter("GRACE_PERIOD")}
+                className="gap-2"
+              >
+                <AlertCircle className="h-4 w-4" />
+                Grace Period
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("GRACE_PERIOD")}
+                </Badge>
+              </Button>
+              
+              <Button
+                variant={statusFilter === "DEACTIVATED" ? "default" : "outline"}
+                onClick={() => setStatusFilter("DEACTIVATED")}
+                className="gap-2"
+              >
+                <XCircle className="h-4 w-4" />
+                Deactivated
+                <Badge variant="secondary" className="ml-2">
+                  {getStatusCount("DEACTIVATED")}
+                </Badge>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Add SIM Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -609,7 +719,7 @@ export default function SimCardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Action Dialog (Grace Period / Reactivate / Deactivate) */}
+        {/* Action Dialog (Activate / Install / Grace Period / Reactivate / Deactivate) */}
         <Dialog open={actionDialog.isOpen} onOpenChange={closeActionDialog}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -626,7 +736,55 @@ export default function SimCardsPage() {
                   {actionDialog.sim.iccid && (
                     <div className="text-xs text-muted-foreground">ICCID: {actionDialog.sim.iccid}</div>
                   )}
+                  <div className="text-xs text-muted-foreground">
+                    Current Status: <Badge className={`${STATUS_COLORS[actionDialog.sim.status]} text-white`}>
+                      {actionDialog.sim.status}
+                    </Badge>
+                  </div>
                 </div>
+
+                {actionDialog.type === "activate" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="activate_date">Tanggal Aktivasi</Label>
+                    <Input
+                      id="activate_date"
+                      type="date"
+                      value={actionFormData.date}
+                      onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Status akan berubah dari WAREHOUSE → ACTIVATED
+                    </p>
+                  </div>
+                )}
+
+                {actionDialog.type === "install" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="install_date">Tanggal Instalasi</Label>
+                      <Input
+                        id="install_date"
+                        type="date"
+                        value={actionFormData.date}
+                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="imei">IMEI Device *</Label>
+                      <Input
+                        id="imei"
+                        placeholder="123456789012345"
+                        value={actionFormData.imei}
+                        onChange={(e) => setActionFormData({...actionFormData, imei: e.target.value})}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        IMEI device tempat kartu SIM diinstall. Status akan berubah dari ACTIVATED → INSTALLED
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 {actionDialog.type === "grace_period" && (
                   <>
@@ -650,7 +808,7 @@ export default function SimCardsPage() {
                         required
                       />
                       <p className="text-xs text-muted-foreground">
-                        Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan.
+                        Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan. Status akan berubah dari INSTALLED → GRACE_PERIOD
                       </p>
                     </div>
                   </>
@@ -665,6 +823,9 @@ export default function SimCardsPage() {
                       value={actionFormData.date}
                       onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Status akan berubah kembali ke INSTALLED setelah pembayaran diterima.
+                    </p>
                   </div>
                 )}
 
@@ -689,6 +850,9 @@ export default function SimCardsPage() {
                         onChange={(e) => setActionFormData({...actionFormData, reason: e.target.value})}
                         required
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Status akan berubah ke DEACTIVATED dan layanan dihentikan.
+                      </p>
                     </div>
                   </>
                 )}
@@ -700,6 +864,8 @@ export default function SimCardsPage() {
                 Batal
               </Button>
               <Button onClick={handleActionSubmit}>
+                {actionDialog.type === "activate" && "Aktivasi"}
+                {actionDialog.type === "install" && "Install"}
                 {actionDialog.type === "grace_period" && "Simpan Grace Period"}
                 {actionDialog.type === "reactivate" && "Reaktivasi"}
                 {actionDialog.type === "deactivate" && "Non-aktifkan"}
@@ -708,40 +874,17 @@ export default function SimCardsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Filters & Search */}
+        {/* Search Bar */}
         <Card>
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by phone number, ICCID, or provider..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-              
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as SimStatus | "ALL")}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Status</SelectItem>
-                  <SelectItem value="WAREHOUSE">WAREHOUSE</SelectItem>
-                  <SelectItem value="ACTIVATED">ACTIVATED</SelectItem>
-                  <SelectItem value="INSTALLED">INSTALLED</SelectItem>
-                  <SelectItem value="BILLING">BILLING</SelectItem>
-                  <SelectItem value="GRACE_PERIOD">GRACE_PERIOD</SelectItem>
-                  <SelectItem value="DEACTIVATED">DEACTIVATED</SelectItem>
-                </SelectContent>
-              </Select>
+          <CardContent className="pt-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by phone number, ICCID, or provider..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
           </CardContent>
         </Card>
@@ -751,9 +894,11 @@ export default function SimCardsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>SIM Cards ({filteredSims.length})</CardTitle>
+                <CardTitle>
+                  {statusFilter === "ALL" ? "All SIM Cards" : `${statusFilter} SIM Cards`} ({filteredSims.length})
+                </CardTitle>
                 <CardDescription>
-                  {statusFilter !== "ALL" ? `Filtered by ${statusFilter}` : "All SIM cards in the system"}
+                  {statusFilter !== "ALL" ? `Showing ${statusFilter} status` : "All SIM cards in the system"}
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm">
@@ -769,7 +914,7 @@ export default function SimCardsPage() {
               </div>
             ) : filteredSims.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                No SIM cards found. Add your first SIM card to get started.
+                No SIM cards found. {statusFilter !== "ALL" && "Try selecting a different status tab."}
               </div>
             ) : (
               <div className="rounded-md border">
@@ -833,18 +978,57 @@ export default function SimCardsPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              {sim.status === "INSTALLED" && (
+                              {/* WAREHOUSE: Activate Button */}
+                              {sim.status === "WAREHOUSE" && (
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => openActionDialog("grace_period", sim)}
-                                  className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                  onClick={() => openActionDialog("activate", sim)}
+                                  className="h-8 text-blue-600 border-blue-200 hover:bg-blue-50"
                                 >
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Grace Period
+                                  <PlayCircle className="h-3 w-3 mr-1" />
+                                  Activate
                                 </Button>
                               )}
 
+                              {/* ACTIVATED: Install Button */}
+                              {sim.status === "ACTIVATED" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openActionDialog("install", sim)}
+                                  className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Install
+                                </Button>
+                              )}
+
+                              {/* INSTALLED: Grace Period & Deactivate Buttons */}
+                              {sim.status === "INSTALLED" && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openActionDialog("grace_period", sim)}
+                                    className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                  >
+                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    Grace Period
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openActionDialog("deactivate", sim)}
+                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Deactivate
+                                  </Button>
+                                </>
+                              )}
+
+                              {/* GRACE_PERIOD: Reactivate & Deactivate Buttons */}
                               {sim.status === "GRACE_PERIOD" && (
                                 <>
                                   <Button
@@ -868,6 +1052,20 @@ export default function SimCardsPage() {
                                 </>
                               )}
 
+                              {/* DEACTIVATED: Reactivate Button */}
+                              {sim.status === "DEACTIVATED" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openActionDialog("reactivate", sim)}
+                                  className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                >
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Reaktivasi
+                                </Button>
+                              )}
+
+                              {/* Detail Button (always visible) */}
                               <Link href={`/sim-cards/${sim.id}`}>
                                 <Button variant="ghost" size="sm">
                                   <Eye className="h-4 w-4 mr-2" />
