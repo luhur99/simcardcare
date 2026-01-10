@@ -112,8 +112,11 @@ export default function SimCardsPage() {
         status: formData.status,
         current_imei: formData.current_imei || null,
         activation_date: null,
+        installation_date: null,
+        deactivation_date: null,
         billing_cycle_day: null,
         monthly_cost: formData.monthly_cost ? parseFloat(formData.monthly_cost) : null,
+        accumulated_cost: 0,
         notes: formData.notes || null
       };
 
