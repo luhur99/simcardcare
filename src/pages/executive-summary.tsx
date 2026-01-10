@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, Download, TrendingDown, Ghost, DollarSign, Calendar } from "lucide-react";
 import { simService } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
@@ -36,10 +37,31 @@ export default function ExecutiveSummary() {
   });
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>(
+    new Date().toISOString().slice(0, 7) // Format: YYYY-MM
+  );
+  const [overlapDetails, setOverlapDetails] = useState<{
+    totalOverlapCost: number;
+    overlapSims: Array<{
+      phoneNumber: string;
+      iccid: string;
+      imei: string | null;
+      overlapStartDate: string;
+      overlapEndDate: string;
+      overlapDays: number;
+      monthlyCost: number;
+      dailyRate: number;
+      totalOverlapCost: number;
+      reason: string;
+    }>;
+  }>({
+    totalOverlapCost: 0,
+    overlapSims: []
+  });
 
   useEffect(() => {
     loadMetrics();
-  }, []);
+  }, [selectedMonth]);
 
   const loadMetrics = async () => {
     setLoading(true);
@@ -47,6 +69,10 @@ export default function ExecutiveSummary() {
       const sims = await simService.getSimCards();
       const calculatedMetrics = calculateLeakageMetrics(sims);
       setMetrics(calculatedMetrics);
+      
+      // Calculate overlap details for selected month
+      const overlapData = calculateOverlapDetails(sims, selectedMonth);
+      setOverlapDetails(overlapData);
     } catch (error) {
       console.error("Error loading metrics:", error);
     } finally {
@@ -132,6 +158,113 @@ export default function ExecutiveSummary() {
     };
   };
 
+  const calculateOverlapDetails = (sims: SimCard[], monthFilter: string) => {
+    const [year, month] = monthFilter.split("-").map(Number);
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+    const now = new Date();
+    
+    const overlapSims: Array<{
+      phoneNumber: string;
+      iccid: string;
+      imei: string | null;
+      overlapStartDate: string;
+      overlapEndDate: string;
+      overlapDays: number;
+      monthlyCost: number;
+      dailyRate: number;
+      totalOverlapCost: number;
+      reason: string;
+    }> = [];
+
+    // Find SIMs with overlap in selected month
+    sims.forEach(sim => {
+      // Scenario 1: Multiple SIMs on same IMEI in the period
+      if (sim.current_imei && sim.installation_date) {
+        const installDate = new Date(sim.installation_date);
+        
+        // Check if this SIM was installed in selected month
+        if (installDate >= monthStart && installDate <= monthEnd) {
+          // Find other SIMs that were also on this IMEI in the same period
+          const otherSimsOnSameImei = sims.filter(otherSim => 
+            otherSim.id !== sim.id &&
+            otherSim.current_imei === sim.current_imei &&
+            otherSim.installation_date &&
+            new Date(otherSim.installation_date) <= monthEnd &&
+            (!otherSim.deactivation_date || new Date(otherSim.deactivation_date) >= monthStart)
+          );
+
+          if (otherSimsOnSameImei.length > 0) {
+            // Calculate overlap period
+            const overlapStart = installDate > monthStart ? installDate : monthStart;
+            const overlapEnd = sim.deactivation_date 
+              ? new Date(sim.deactivation_date) < monthEnd 
+                ? new Date(sim.deactivation_date) 
+                : monthEnd
+              : monthEnd;
+            
+            const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (overlapDays > 0) {
+              const dailyRate = sim.monthly_cost / 30;
+              overlapSims.push({
+                phoneNumber: sim.phone_number,
+                iccid: sim.iccid || "N/A",
+                imei: sim.current_imei,
+                overlapStartDate: overlapStart.toISOString(),
+                overlapEndDate: overlapEnd.toISOString(),
+                overlapDays,
+                monthlyCost: sim.monthly_cost,
+                dailyRate,
+                totalOverlapCost: overlapDays * dailyRate,
+                reason: `Overlap dengan ${otherSimsOnSameImei.length} SIM lain di IMEI yang sama`
+              });
+            }
+          }
+        }
+      }
+
+      // Scenario 2: Grace Period (should be billing but in grace)
+      if (sim.status === "GRACE_PERIOD" && sim.installation_date) {
+        const installDate = new Date(sim.installation_date);
+        const gracePeriodEnd = sim.deactivation_date ? new Date(sim.deactivation_date) : now;
+        
+        // Check if grace period overlaps with selected month
+        if (gracePeriodEnd >= monthStart && installDate <= monthEnd) {
+          const overlapStart = installDate > monthStart ? installDate : monthStart;
+          const overlapEnd = gracePeriodEnd < monthEnd ? gracePeriodEnd : monthEnd;
+          const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (overlapDays > 0) {
+            const dailyRate = sim.monthly_cost / 30;
+            overlapSims.push({
+              phoneNumber: sim.phone_number,
+              iccid: sim.iccid || "N/A",
+              imei: sim.current_imei,
+              overlapStartDate: overlapStart.toISOString(),
+              overlapEndDate: overlapEnd.toISOString(),
+              overlapDays,
+              monthlyCost: sim.monthly_cost,
+              dailyRate,
+              totalOverlapCost: overlapDays * dailyRate,
+              reason: "Grace Period - Seharusnya sudah billing"
+            });
+          }
+        }
+      }
+    });
+
+    // Sort by total cost descending
+    overlapSims.sort((a, b) => b.totalOverlapCost - a.totalOverlapCost);
+
+    const totalOverlapCost = overlapSims.reduce((sum, sim) => sum + sim.totalOverlapCost, 0);
+
+    return {
+      totalOverlapCost,
+      overlapSims
+    };
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -139,6 +272,21 @@ export default function ExecutiveSummary() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  const generateMonthOptions = () => {
+    const options = [];
+    const currentDate = new Date();
+    
+    // Generate last 12 months
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const value = date.toISOString().slice(0, 7); // YYYY-MM
+      const label = date.toLocaleDateString("id-ID", { year: "numeric", month: "long" });
+      options.push({ value, label });
+    }
+    
+    return options;
   };
 
   const exportAuditReport = async () => {
@@ -293,6 +441,154 @@ export default function ExecutiveSummary() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Overlap Cost Breakdown */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-orange-500" />
+                  Detail Biaya Overlap per Bulan
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Breakdown biaya overlap untuk SIM yang terpasang di IMEI yang sama atau dalam grace period
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Pilih Bulan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generateMonthOptions().map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Summary Stats */}
+            <div className="grid gap-4 md:grid-cols-2 mb-6">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Total Biaya Overlap Bulan Ini</div>
+                  <div className="text-3xl font-bold text-orange-600 mt-2">
+                    {formatCurrency(overlapDetails.totalOverlapCost)}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Dari {overlapDetails.overlapSims.length} SIM card yang overlap
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Rata-rata Biaya per SIM</div>
+                  <div className="text-3xl font-bold mt-2">
+                    {overlapDetails.overlapSims.length > 0 
+                      ? formatCurrency(overlapDetails.totalOverlapCost / overlapDetails.overlapSims.length)
+                      : formatCurrency(0)
+                    }
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Per kartu yang mengalami overlap
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Overlap Details Table */}
+            {overlapDetails.overlapSims.length === 0 ? (
+              <div className="text-center py-12">
+                <TrendingDown className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Tidak ada biaya overlap di bulan ini</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Semua SIM card terkelola dengan baik tanpa overlap
+                </p>
+              </div>
+            ) : (
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>No SIM Card</TableHead>
+                      <TableHead>ICCID</TableHead>
+                      <TableHead>IMEI</TableHead>
+                      <TableHead>Periode Overlap</TableHead>
+                      <TableHead className="text-right">Hari</TableHead>
+                      <TableHead className="text-right">Biaya Bulanan</TableHead>
+                      <TableHead className="text-right">Biaya Harian</TableHead>
+                      <TableHead className="text-right">Total Biaya</TableHead>
+                      <TableHead>Alasan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {overlapDetails.overlapSims.map((sim, index) => (
+                      <TableRow key={`${sim.phoneNumber}-${sim.overlapStartDate}`}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-mono">{sim.phoneNumber}</TableCell>
+                        <TableCell className="font-mono text-sm">{sim.iccid}</TableCell>
+                        <TableCell className="font-mono text-sm">{sim.imei || "-"}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-muted-foreground">
+                              {new Date(sim.overlapStartDate).toLocaleDateString("id-ID", { 
+                                day: "2-digit", 
+                                month: "short" 
+                              })}
+                            </span>
+                            <span className="text-xs text-muted-foreground">s/d</span>
+                            <span className="text-muted-foreground">
+                              {new Date(sim.overlapEndDate).toLocaleDateString("id-ID", { 
+                                day: "2-digit", 
+                                month: "short",
+                                year: "numeric"
+                              })}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{sim.overlapDays}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(sim.monthlyCost)}</TableCell>
+                        <TableCell className="text-right text-sm text-muted-foreground">
+                          {formatCurrency(sim.dailyRate)}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-orange-600">
+                          {formatCurrency(sim.totalOverlapCost)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-xs">
+                          {sim.reason}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Formula Explanation */}
+            {overlapDetails.overlapSims.length > 0 && (
+              <div className="mt-6 p-4 bg-muted rounded-lg">
+                <h4 className="text-sm font-semibold mb-2">📊 Formula Perhitungan Biaya Overlap:</h4>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p><strong>Biaya Harian</strong> = Biaya Bulanan ÷ 30 hari</p>
+                  <p><strong>Total Biaya Overlap</strong> = Biaya Harian × Jumlah Hari Overlap</p>
+                  <p className="mt-2 text-xs">
+                    Contoh: Jika biaya bulanan Rp 150.000 dan overlap 15 hari, maka:<br />
+                    Biaya Harian = Rp 150.000 ÷ 30 = Rp 5.000<br />
+                    Total Biaya Overlap = Rp 5.000 × 15 = Rp 75.000
+                  </p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Top 10 High-Leakage SIM Cards */}
         <Card>
