@@ -100,9 +100,13 @@ export default function Home() {
   const filterCards = () => {
     let filtered = simCards;
 
-    // Filter by status
+    // Filter by status - handle BILLING migration gracefully
     if (filterStatus !== "ALL") {
-      filtered = filtered.filter((card) => card.status === filterStatus);
+      filtered = filtered.filter((card) => {
+        // Treat BILLING as INSTALLED for filtering
+        const cardStatus = card.status === 'BILLING' ? 'INSTALLED' : card.status;
+        return cardStatus === filterStatus;
+      });
     }
 
     // Filter by search term
