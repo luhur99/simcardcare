@@ -1,0 +1,1 @@
+ALTER TABLE sim_cards ADD COLUMN IF NOT EXISTS deactivation_reason TEXT;

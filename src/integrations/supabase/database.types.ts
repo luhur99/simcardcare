@@ -238,6 +238,7 @@ export type Database = {
           created_at: string | null
           current_imei: string | null
           deactivation_date: string | null
+          deactivation_reason: string | null
           iccid: string | null
           id: string
           installation_date: string | null
@@ -258,6 +259,7 @@ export type Database = {
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
+          deactivation_reason?: string | null
           iccid?: string | null
           id?: string
           installation_date?: string | null
@@ -278,6 +280,7 @@ export type Database = {
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
+          deactivation_reason?: string | null
           iccid?: string | null
           id?: string
           installation_date?: string | null

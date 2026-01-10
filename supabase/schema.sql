@@ -51,6 +51,7 @@ CREATE TABLE sim_cards (
   activation_date DATE,
   installation_date DATE,
   deactivation_date DATE,
+  deactivation_reason TEXT, -- Added column
   billing_cycle_day INTEGER,
   monthly_cost DECIMAL(10, 2) DEFAULT 0,
   accumulated_cost DECIMAL(12, 2) DEFAULT 0,

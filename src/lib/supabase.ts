@@ -29,6 +29,7 @@ export interface SimCard {
   activation_date: string | null;
   installation_date: string | null;
   deactivation_date: string | null;
+  deactivation_reason: string | null;
   billing_cycle_day: number | null;
   monthly_cost: number | null;
   accumulated_cost: number | null;

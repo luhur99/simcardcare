@@ -65,7 +65,11 @@ export default function SimCardsPage() {
     status: "WAREHOUSE" as SimStatus,
     current_imei: "",
     monthly_cost: "",
-    notes: ""
+    notes: "",
+    activation_date: "",
+    installation_date: "",
+    deactivation_date: "",
+    deactivation_reason: ""
   });
 
   useEffect(() => {
@@ -113,6 +117,12 @@ export default function SimCardsPage() {
         return;
       }
 
+      // Validation: If status is DEACTIVATED, deactivation_reason is required
+      if (formData.status === "DEACTIVATED" && !formData.deactivation_reason) {
+        alert("Alasan Deaktivasi wajib diisi untuk status DEACTIVATED!");
+        return;
+      }
+
       const newSim = {
         phone_number: formData.phone_number,
         iccid: formData.iccid || null,
@@ -120,9 +130,10 @@ export default function SimCardsPage() {
         plan_name: formData.plan_name || null,
         status: formData.status,
         current_imei: formData.current_imei || null,
-        activation_date: null,
-        installation_date: null,
-        deactivation_date: null,
+        activation_date: formData.activation_date || null,
+        installation_date: formData.installation_date || null,
+        deactivation_date: formData.deactivation_date || null,
+        deactivation_reason: formData.deactivation_reason || null,
         billing_cycle_day: null,
         monthly_cost: Number(formData.monthly_cost) || 0,
         accumulated_cost: 0,
@@ -149,7 +160,11 @@ export default function SimCardsPage() {
       status: "WAREHOUSE",
       current_imei: "",
       monthly_cost: "",
-      notes: ""
+      notes: "",
+      activation_date: "",
+      installation_date: "",
+      deactivation_date: "",
+      deactivation_reason: ""
     });
   };
 
@@ -400,6 +415,53 @@ export default function SimCardsPage() {
                   onChange={(e) => setFormData({...formData, monthly_cost: e.target.value})}
                 />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="activation_date">Tanggal Aktivasi</Label>
+                  <Input
+                    id="activation_date"
+                    type="date"
+                    value={formData.activation_date}
+                    onChange={(e) => setFormData({...formData, activation_date: e.target.value})}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="installation_date">Tanggal Instalasi</Label>
+                  <Input
+                    id="installation_date"
+                    type="date"
+                    value={formData.installation_date}
+                    onChange={(e) => setFormData({...formData, installation_date: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              {formData.status === "DEACTIVATED" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="deactivation_date">Tanggal Deaktivasi</Label>
+                    <Input
+                      id="deactivation_date"
+                      type="date"
+                      value={formData.deactivation_date}
+                      onChange={(e) => setFormData({...formData, deactivation_date: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deactivation_reason">Alasan Deaktivasi *</Label>
+                    <Input
+                      id="deactivation_reason"
+                      placeholder="Contoh: Kontrak berakhir, Device rusak, dll"
+                      value={formData.deactivation_reason}
+                      onChange={(e) => setFormData({...formData, deactivation_reason: e.target.value})}
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes</Label>
