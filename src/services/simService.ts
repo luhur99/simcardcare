@@ -359,5 +359,29 @@ export const simService = {
         warehouse: sims.filter((s: SimCard) => s.status === 'WAREHOUSE').length
       };
     }
+  },
+
+  // Quick Actions for Dashboard
+  async activateSimCard(id: string, activationDate: string): Promise<SimCard> {
+    return this.updateSimCard(id, {
+      status: 'ACTIVATED',
+      activation_date: activationDate
+    });
+  },
+
+  async installSimCard(id: string, installationDate: string, imei: string): Promise<SimCard> {
+    return this.updateSimCard(id, {
+      status: 'INSTALLED',
+      installation_date: installationDate,
+      current_imei: imei
+    });
+  },
+
+  async deactivateSimCard(id: string, deactivationDate: string, reason?: string): Promise<SimCard> {
+    return this.updateSimCard(id, {
+      status: 'DEACTIVATED',
+      deactivation_date: deactivationDate,
+      notes: reason ? `${reason}` : undefined
+    });
   }
 };
