@@ -7,7 +7,8 @@ import {
   Users, 
   History, 
   LayoutDashboard,
-  Menu
+  Menu,
+  TrendingDown
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
@@ -18,8 +19,9 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const navigation = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/", icon: Home },
     { name: "SIM Cards", href: "/sim-cards", icon: CreditCard },
+    { name: "Executive Summary", href: "/executive-summary", icon: TrendingDown },
     { name: "Devices", href: "/devices", icon: Smartphone },
     { name: "Customers", href: "/customers", icon: Users },
     { name: "History", href: "/history", icon: History },
