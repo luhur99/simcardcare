@@ -58,7 +58,8 @@ export interface Customer {
   email: string | null;
   phone: string | null;
   address: string | null;
-  company_name: string | null;
+  company: string | null;
+  tax_id: string | null;
   created_at: string;
   updated_at: string;
 }

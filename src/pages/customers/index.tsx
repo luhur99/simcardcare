@@ -7,35 +7,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Users, UserCheck, UserX, Edit, Phone, Mail, MapPin } from "lucide-react";
+import { Plus, Search, Users, UserCheck, Edit, Phone, Mail, MapPin, Building2, CreditCard } from "lucide-react";
 import { supabase, isSupabaseConnected, type Customer } from "@/lib/supabase";
 
 type CustomerFormData = {
   name: string;
-  contact_person: string;
-  phone: string;
   email: string;
+  phone: string;
   address: string;
-  status: string;
+  company: string;
+  tax_id: string;
 };
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState<CustomerFormData>({
     name: "",
-    contact_person: "",
-    phone: "",
     email: "",
+    phone: "",
     address: "",
-    status: "ACTIVE"
+    company: "",
+    tax_id: ""
   });
 
   useEffect(() => {
@@ -75,34 +72,34 @@ export default function CustomersPage() {
     const mock: Customer[] = [
       {
         id: "1",
-        name: "PT Transportasi Nusantara",
-        contact_person: "Budi Santoso",
-        phone: "081234567890",
+        name: "Budi Santoso",
         email: "budi@transportasi.com",
+        phone: "081234567890",
         address: "Jl. Sudirman No. 123, Jakarta Pusat",
-        status: "ACTIVE",
+        company: "PT Transportasi Nusantara",
+        tax_id: "01.234.567.8-012.000",
         created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: "2",
-        name: "CV Logistik Sejahtera",
-        contact_person: "Siti Nurhaliza",
-        phone: "081987654321",
+        name: "Siti Nurhaliza",
         email: "siti@logistik.com",
+        phone: "081987654321",
         address: "Jl. Thamrin No. 456, Jakarta Selatan",
-        status: "ACTIVE",
+        company: "CV Logistik Sejahtera",
+        tax_id: "02.345.678.9-123.000",
         created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
       },
       {
         id: "3",
-        name: "PT Fleet Management Indonesia",
-        contact_person: "Ahmad Hidayat",
-        phone: "081122334455",
+        name: "Ahmad Hidayat",
         email: "ahmad@fleet.com",
+        phone: "081122334455",
         address: "Jl. Gatot Subroto No. 789, Jakarta Barat",
-        status: "INACTIVE",
+        company: "PT Fleet Management Indonesia",
+        tax_id: "03.456.789.0-234.000",
         created_at: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
       }
@@ -124,7 +121,7 @@ export default function CustomersPage() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        const updated = [...customers, newCustomer];
+        const updated = [newCustomer, ...customers];
         setCustomers(updated);
         localStorage.setItem("customers", JSON.stringify(updated));
       }
@@ -173,11 +170,11 @@ export default function CustomersPage() {
     setEditingCustomer(null);
     setFormData({
       name: "",
-      contact_person: "",
-      phone: "",
       email: "",
+      phone: "",
       address: "",
-      status: "ACTIVE"
+      company: "",
+      tax_id: ""
     });
     setDialogOpen(true);
   };
@@ -186,11 +183,11 @@ export default function CustomersPage() {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
-      contact_person: customer.contact_person,
-      phone: customer.phone,
-      email: customer.email,
+      email: customer.email || "",
+      phone: customer.phone || "",
       address: customer.address || "",
-      status: customer.status
+      company: customer.company || "",
+      tax_id: customer.tax_id || ""
     });
     setDialogOpen(true);
   };
@@ -203,19 +200,17 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter(customer => {
     const matchesSearch =
       customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.contact_person.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone.includes(searchQuery) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase());
+      (customer.company && customer.company.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (customer.phone && customer.phone.includes(searchQuery)) ||
+      (customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    const matchesStatus = statusFilter === "all" || customer.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const stats = {
     total: customers.length,
-    active: customers.filter(c => c.status === "ACTIVE").length,
-    inactive: customers.filter(c => c.status === "INACTIVE").length
+    companies: customers.filter(c => c.company).length,
+    individuals: customers.filter(c => !c.company).length
   };
 
   return (
@@ -230,7 +225,7 @@ export default function CustomersPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
             <p className="text-muted-foreground">
-              Manage your customer database and track their assets
+              Manage your customer database and company details
             </p>
           </div>
           <Button onClick={openAddDialog}>
@@ -256,26 +251,26 @@ export default function CustomersPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium">Corporate Clients</CardTitle>
+              <Building2 className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.active}</div>
+              <div className="text-2xl font-bold">{stats.companies}</div>
               <p className="text-xs text-muted-foreground">
-                Currently active
+                With company details
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Inactive Customers</CardTitle>
-              <UserX className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-medium">Individual Clients</CardTitle>
+              <UserCheck className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.inactive}</div>
+              <div className="text-2xl font-bold">{stats.individuals}</div>
               <p className="text-xs text-muted-foreground">
-                Not currently active
+                Without company details
               </p>
             </CardContent>
           </Card>
@@ -285,36 +280,22 @@ export default function CustomersPage() {
         <Card>
           <CardHeader>
             <CardTitle>Filter Customers</CardTitle>
-            <CardDescription>Search and filter customer list</CardDescription>
+            <CardDescription>Search customer list</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+            <div className="flex gap-4">
+              <div className="space-y-2 flex-1">
                 <Label htmlFor="search">Search</Label>
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="search"
-                    placeholder="Search name, contact, phone, or email..."
+                    placeholder="Search name, company, phone, or email..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger id="status">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
             <div className="mt-4 text-sm text-muted-foreground">
@@ -349,12 +330,11 @@ export default function CustomersPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Company Name</TableHead>
-                      <TableHead>Contact Person</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>Customer Name</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Contact Info</TableHead>
+                      <TableHead>Tax ID (NPWP)</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -364,31 +344,43 @@ export default function CustomersPage() {
                         <TableCell className="font-medium">
                           {customer.name}
                         </TableCell>
-                        <TableCell>{customer.contact_person}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono text-sm">{customer.phone}</span>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-3 w-3 text-muted-foreground" />
+                            <span>{customer.company || "-"}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Mail className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-sm">{customer.email}</span>
+                          <div className="space-y-1">
+                            {customer.phone && (
+                              <div className="flex items-center gap-1">
+                                <Phone className="h-3 w-3 text-muted-foreground" />
+                                <span className="font-mono text-xs">{customer.phone}</span>
+                              </div>
+                            )}
+                            {customer.email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs">{customer.email}</span>
+                              </div>
+                            )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {customer.tax_id ? (
+                            <div className="flex items-center gap-1">
+                              <CreditCard className="h-3 w-3 text-muted-foreground" />
+                              <span className="font-mono text-xs">{customer.tax_id}</span>
+                            </div>
+                          ) : (
+                            "-"
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 max-w-[200px]">
                             <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm truncate">{customer.address || "-"}</span>
+                            <span className="text-xs truncate" title={customer.address || ""}>{customer.address || "-"}</span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={customer.status === "ACTIVE" ? "default" : "secondary"}
-                          >
-                            {customer.status}
-                          </Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           <Button
@@ -426,28 +418,28 @@ export default function CustomersPage() {
 
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Company Name *</Label>
+              <Label htmlFor="name">Customer Name *</Label>
               <Input
                 id="name"
-                placeholder="e.g., PT Transportasi Nusantara"
+                placeholder="e.g., Budi Santoso"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="contact_person">Contact Person *</Label>
+              <Label htmlFor="company">Company Name</Label>
               <Input
-                id="contact_person"
-                placeholder="e.g., Budi Santoso"
-                value={formData.contact_person}
-                onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                id="company"
+                placeholder="e.g., PT Transportasi Nusantara"
+                value={formData.company}
+                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number *</Label>
+                <Label htmlFor="phone">Phone Number</Label>
                 <Input
                   id="phone"
                   placeholder="e.g., 081234567890"
@@ -457,7 +449,7 @@ export default function CustomersPage() {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -466,6 +458,16 @@ export default function CustomersPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="tax_id">Tax ID (NPWP)</Label>
+              <Input
+                id="tax_id"
+                placeholder="e.g., 01.234.567.8-012.000"
+                value={formData.tax_id}
+                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+              />
             </div>
 
             <div className="grid gap-2">
@@ -478,22 +480,6 @@ export default function CustomersPage() {
                 rows={3}
               />
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="customer-status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
-              >
-                <SelectTrigger id="customer-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <DialogFooter>
@@ -502,7 +488,7 @@ export default function CustomersPage() {
             </Button>
             <Button
               onClick={editingCustomer ? handleUpdateCustomer : handleAddCustomer}
-              disabled={!formData.name || !formData.contact_person || !formData.phone || !formData.email}
+              disabled={!formData.name}
             >
               {editingCustomer ? "Update Customer" : "Add Customer"}
             </Button>
