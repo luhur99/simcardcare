@@ -184,7 +184,7 @@ export default function SimCardsPage() {
 
       try {
         // Extract data with various possible column names
-        let phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
+        const phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
         const iccid = String(row["ICCID"] || "").trim();
         const provider = String(row["Provider"] || row["Operator"] || "").trim();
         const packageName = String(row["Package"] || row["Paket"] || "").trim();
@@ -227,7 +227,7 @@ export default function SimCardsPage() {
           phone_number: phoneNumber,
           iccid: iccid || null,
           provider: provider || null,
-          package_name: packageName || null,
+          plan_name: packageName || null,
           status: ["WAREHOUSE", "ACTIVATED", "INSTALLED", "BILLING", "GRACE_PERIOD", "DEACTIVATED"].includes(status) 
             ? status 
             : "WAREHOUSE",
@@ -236,7 +236,6 @@ export default function SimCardsPage() {
           activation_date: null,
           installation_date: null,
           billing_cycle_day: null,
-          grace_period_end: null,
           deactivation_date: null,
           deactivation_reason: null,
           replacement_reason: null,
@@ -617,7 +616,7 @@ export default function SimCardsPage() {
           { key: "phone_number", label: "No SIM Card", example: "081234567890" },
           { key: "iccid", label: "ICCID", example: "89620012345678901234" },
           { key: "provider", label: "Provider", example: "Telkomsel" },
-          { key: "package_name", label: "Package", example: "Unlimited Data" },
+          { key: "plan_name", label: "Package", example: "Unlimited Data" },
           { key: "monthly_cost", label: "Monthly Cost", example: "150000" },
           { key: "status", label: "Status", example: "WAREHOUSE" }
         ]}
