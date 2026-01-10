@@ -89,9 +89,10 @@ export default function Home() {
     try {
       setLoading(true);
       const cards = await simService.getSimCards();
-      setSimCards(cards);
+      setSimCards(cards || []);
     } catch (error) {
       console.error("Error loading SIM cards:", error);
+      setSimCards([]);
     } finally {
       setLoading(false);
     }
@@ -183,12 +184,12 @@ export default function Home() {
     sim.status !== "DEACTIVATED" && sim.status !== "WAREHOUSE";
 
   const statusCounts = {
-    ALL: simCards.length,
-    WAREHOUSE: simCards.filter((s) => s.status === "WAREHOUSE").length,
-    ACTIVATED: simCards.filter((s) => s.status === "ACTIVATED").length,
-    INSTALLED: simCards.filter((s) => s.status === "INSTALLED").length,
-    GRACE_PERIOD: simCards.filter((s) => s.status === "GRACE_PERIOD").length,
-    DEACTIVATED: simCards.filter((s) => s.status === "DEACTIVATED").length,
+    ALL: simCards?.length || 0,
+    WAREHOUSE: simCards?.filter((s) => s?.status === "WAREHOUSE").length || 0,
+    ACTIVATED: simCards?.filter((s) => s?.status === "ACTIVATED").length || 0,
+    INSTALLED: simCards?.filter((s) => s?.status === "INSTALLED").length || 0,
+    GRACE_PERIOD: simCards?.filter((s) => s?.status === "GRACE_PERIOD").length || 0,
+    DEACTIVATED: simCards?.filter((s) => s?.status === "DEACTIVATED").length || 0,
   };
 
   return (
