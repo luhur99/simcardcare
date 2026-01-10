@@ -57,7 +57,7 @@ export default function SimCardsPage() {
     iccid: "",
     phone_number: "",
     provider: "",
-    plan_type: "",
+    plan_name: "",
     status: "WAREHOUSE" as SimStatus,
     current_imei: "",
     monthly_cost: "",
@@ -108,7 +108,7 @@ export default function SimCardsPage() {
         iccid: formData.iccid,
         phone_number: formData.phone_number || null,
         provider: formData.provider,
-        plan_type: formData.plan_type || null,
+        plan_name: formData.plan_name || null,
         status: formData.status,
         current_imei: formData.current_imei || null,
         activation_date: null,
@@ -134,7 +134,7 @@ export default function SimCardsPage() {
       iccid: "",
       phone_number: "",
       provider: "",
-      plan_type: "",
+      plan_name: "",
       status: "WAREHOUSE",
       current_imei: "",
       monthly_cost: "",
@@ -220,12 +220,12 @@ export default function SimCardsPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="plan_type">Plan Type</Label>
+                    <Label htmlFor="plan_name">Plan Name</Label>
                     <Input
-                      id="plan_type"
+                      id="plan_name"
                       placeholder="Corporate 50GB"
-                      value={formData.plan_type}
-                      onChange={(e) => setFormData({...formData, plan_type: e.target.value})}
+                      value={formData.plan_name}
+                      onChange={(e) => setFormData({...formData, plan_name: e.target.value})}
                     />
                   </div>
                 </div>
@@ -383,7 +383,7 @@ export default function SimCardsPage() {
                         </TableCell>
                         <TableCell>{sim.phone_number || "-"}</TableCell>
                         <TableCell>{sim.provider}</TableCell>
-                        <TableCell>{sim.plan_type || "-"}</TableCell>
+                        <TableCell>{sim.plan_name || "-"}</TableCell>
                         <TableCell>
                           <Badge 
                             className={`${STATUS_COLORS[sim.status]} text-white`}

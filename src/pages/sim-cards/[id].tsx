@@ -153,7 +153,7 @@ export default function SimCardDetailPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Paket</p>
-              <p className="font-medium">{simCard.plan_type || "-"}</p>
+              <p className="font-medium">{simCard.plan_name || "-"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">IMEI Terpasang</p>
