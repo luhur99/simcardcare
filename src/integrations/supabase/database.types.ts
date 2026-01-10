@@ -241,11 +241,13 @@ export type Database = {
           iccid: string
           id: string
           installation_date: string | null
+          is_reactivated: boolean | null
           monthly_cost: number | null
           notes: string | null
           phone_number: string | null
           plan_name: string | null
           provider: string | null
+          replacement_reason: string | null
           status: Database["public"]["Enums"]["sim_status"]
           updated_at: string | null
         }
@@ -259,11 +261,13 @@ export type Database = {
           iccid: string
           id?: string
           installation_date?: string | null
+          is_reactivated?: boolean | null
           monthly_cost?: number | null
           notes?: string | null
           phone_number?: string | null
           plan_name?: string | null
           provider?: string | null
+          replacement_reason?: string | null
           status?: Database["public"]["Enums"]["sim_status"]
           updated_at?: string | null
         }
@@ -277,11 +281,13 @@ export type Database = {
           iccid?: string
           id?: string
           installation_date?: string | null
+          is_reactivated?: boolean | null
           monthly_cost?: number | null
           notes?: string | null
           phone_number?: string | null
           plan_name?: string | null
           provider?: string | null
+          replacement_reason?: string | null
           status?: Database["public"]["Enums"]["sim_status"]
           updated_at?: string | null
         }

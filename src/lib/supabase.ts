@@ -28,6 +28,8 @@ export interface SimCard {
   billing_cycle_day: number | null;
   monthly_cost: number | null;
   accumulated_cost: number | null;
+  is_reactivated: boolean;
+  replacement_reason: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
