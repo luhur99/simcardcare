@@ -296,49 +296,58 @@ export default function Home() {
                     {filteredCards.map((sim) => {
                       // Fallback for migrated data or type safety: treat BILLING as INSTALLED visual
                       const effectiveStatus = (sim.status === 'BILLING' ? 'INSTALLED' : sim.status) as VisibleStatus;
-                      const colors = statusColors[effectiveStatus];
+                      const colors = statusColors[effectiveStatus] || {
+                        bg: "bg-gray-100",
+                        text: "text-gray-700",
+                        border: "border-gray-300"
+                      };
+
+                      // Calculate grace period info OUTSIDE JSX for safety
+                      let gracePeriodInfo = null;
+                      if (sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date) {
+                        try {
+                          const start = new Date(sim.grace_period_start_date);
+                          const now = new Date();
+                          
+                          // Validate dates
+                          if (!isNaN(start.getTime())) {
+                            const diffTime = Math.abs(now.getTime() - start.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            
+                            let colorClass = "text-green-600";
+                            if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
+                            if (diffDays > 10) colorClass = "text-red-600";
+
+                            gracePeriodInfo = {
+                              days: diffDays,
+                              colorClass: colorClass,
+                              dueDate: sim.grace_period_due_date || null
+                            };
+                          }
+                        } catch (error) {
+                          console.error("Error calculating grace period:", error);
+                          gracePeriodInfo = null;
+                        }
+                      }
+
                       return (
                         <TableRow key={sim.id}>
                           <TableCell>
                             <Badge className={`${colors.bg} ${colors.text} border ${colors.border}`}>
                               {statusLabels[effectiveStatus]}
                             </Badge>
-                            {sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date && (
+                            {gracePeriodInfo && (
                               <div className="mt-2 text-xs font-medium">
-                                {(() => {
-                                  try {
-                                    const start = new Date(sim.grace_period_start_date);
-                                    const now = new Date();
-                                    
-                                    // Validate dates
-                                    if (isNaN(start.getTime())) {
-                                      return <span className="text-gray-500">Invalid date</span>;
-                                    }
-                                    
-                                    const diffTime = Math.abs(now.getTime() - start.getTime());
-                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                    
-                                    let colorClass = "text-green-600";
-                                    if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
-                                    if (diffDays > 10) colorClass = "text-red-600";
-
-                                    return (
-                                      <div className="flex flex-col gap-1">
-                                        <span className={colorClass}>
-                                          Overdue: {diffDays} hari
-                                        </span>
-                                        {sim.grace_period_due_date && (
-                                          <span className="text-gray-500">
-                                            Due: {sim.grace_period_due_date}
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  } catch (error) {
-                                    console.error("Error calculating grace period days:", error);
-                                    return <span className="text-gray-500">-</span>;
-                                  }
-                                })()}
+                                <div className="flex flex-col gap-1">
+                                  <span className={gracePeriodInfo.colorClass}>
+                                    Overdue: {gracePeriodInfo.days} hari
+                                  </span>
+                                  {gracePeriodInfo.dueDate && (
+                                    <span className="text-gray-500">
+                                      Due: {gracePeriodInfo.dueDate}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </TableCell>
