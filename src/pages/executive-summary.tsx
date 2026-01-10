@@ -39,6 +39,7 @@ export default function ExecutiveSummary() {
     gracePeriodCost: 0,
     topLeakageSims: []
   });
+  const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>(
@@ -71,6 +72,7 @@ export default function ExecutiveSummary() {
     setLoading(true);
     try {
       const sims = await simService.getSimCards();
+      setSimCards(sims);
       const calculatedMetrics = calculateLeakageMetrics(sims);
       setMetrics(calculatedMetrics);
       
