@@ -44,7 +44,7 @@ export default function ExecutiveSummary() {
   const loadMetrics = async () => {
     setLoading(true);
     try {
-      const sims = await simService.getAllSimCards();
+      const sims = await simService.getSimCards();
       const calculatedMetrics = calculateLeakageMetrics(sims);
       setMetrics(calculatedMetrics);
     } catch (error) {
@@ -144,7 +144,7 @@ export default function ExecutiveSummary() {
   const exportAuditReport = async () => {
     setExporting(true);
     try {
-      const sims = await simService.getAllSimCards();
+      const sims = await simService.getSimCards();
       const allLeakageSims = calculateLeakageMetrics(sims).topLeakageSims;
       
       // Prepare CSV data
