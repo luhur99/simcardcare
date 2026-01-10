@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-empty-object-type */
 export type Json =
   | string
   | number
@@ -239,6 +239,7 @@ export type Database = {
           current_imei: string | null
           deactivation_date: string | null
           deactivation_reason: string | null
+          free_pulsa_months: number | null
           iccid: string | null
           id: string
           installation_date: string | null
@@ -260,6 +261,7 @@ export type Database = {
           current_imei?: string | null
           deactivation_date?: string | null
           deactivation_reason?: string | null
+          free_pulsa_months?: number | null
           iccid?: string | null
           id?: string
           installation_date?: string | null
@@ -281,6 +283,7 @@ export type Database = {
           current_imei?: string | null
           deactivation_date?: string | null
           deactivation_reason?: string | null
+          free_pulsa_months?: number | null
           iccid?: string | null
           id?: string
           installation_date?: string | null
