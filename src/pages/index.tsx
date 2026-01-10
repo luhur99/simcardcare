@@ -1,560 +1,183 @@
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  CreditCard,
-  Smartphone,
-  CheckCircle2,
-  XCircle,
-  Search,
-  AlertCircle,
-  Zap
-} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
-import { SimCard, SimStatus } from "@/lib/supabase";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-// Status color mapping
-type VisibleStatus = Exclude<SimStatus, "BILLING">;
-
-const statusColors: Record<VisibleStatus, { bg: string; text: string; border: string }> = {
-  WAREHOUSE: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
-  ACTIVATED: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300" },
-  INSTALLED: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
-  GRACE_PERIOD: { bg: "bg-orange-100", text: "text-orange-700", border: "border-orange-300" },
-  DEACTIVATED: { bg: "bg-red-100", text: "text-red-700", border: "border-red-300" },
-};
-
-const statusLabels: Record<VisibleStatus, string> = {
-  WAREHOUSE: "Warehouse",
-  ACTIVATED: "Activated",
-  INSTALLED: "Installed",
-  GRACE_PERIOD: "Grace Period",
-  DEACTIVATED: "Deactivated",
-};
-
-type ActionType = "activate" | "install" | "deactivate" | "reactivate" | "grace_period";
 
 export default function Home() {
-  const [simCards, setSimCards] = useState<SimCard[]>([]);
-  const [filteredCards, setFilteredCards] = useState<SimCard[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<VisibleStatus | "ALL">("ALL");
   const [loading, setLoading] = useState(true);
-
-  // Quick Action Dialog
-  const [actionDialog, setActionDialog] = useState<{
-    open: boolean;
-    type: ActionType | null;
-    sim: SimCard | null;
-  }>({ open: false, type: null, sim: null });
-  
-  const [actionData, setActionData] = useState<{
-    date: string;
-    imei: string;
-    reason: string;
-    freePulsaMonths: number;
-    grace_period_due_date: string;
-  }>({
-    date: new Date().toISOString().split("T")[0],
-    imei: "",
-    reason: "",
-    freePulsaMonths: 1,
-    grace_period_due_date: "",
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    totalSims: 0,
+    activeDevices: 0,
+    customers: 0,
+    warehouse: 0
   });
 
   useEffect(() => {
-    loadSimCards();
+    loadStats();
   }, []);
 
-  useEffect(() => {
-    filterCards();
-  }, [searchTerm, filterStatus, simCards]);
-
-  const loadSimCards = async () => {
+  const loadStats = async () => {
     try {
       setLoading(true);
-      const cards = await simService.getSimCards();
-      setSimCards(Array.isArray(cards) ? cards : []);
-    } catch (error) {
-      console.error("Error loading SIM cards:", error);
-      setSimCards([]);
+      setError(null);
+      const data = await simService.getStats();
+      setStats(data || { totalSims: 0, activeDevices: 0, customers: 0, warehouse: 0 });
+    } catch (err: any) {
+      console.error("Error loading stats:", err);
+      setError(err.message || "Failed to load stats");
+      setStats({ totalSims: 0, activeDevices: 0, customers: 0, warehouse: 0 });
     } finally {
       setLoading(false);
     }
   };
 
-  const filterCards = () => {
-    if (!Array.isArray(simCards)) {
-      setFilteredCards([]);
-      return;
-    }
-
-    let filtered = simCards;
-
-    // Filter by status
-    if (filterStatus !== "ALL") {
-      filtered = filtered.filter((card) => {
-        if (!card || !card.status) return false;
-        const cardStatus = card.status === 'BILLING' ? 'INSTALLED' : card.status;
-        return cardStatus === filterStatus;
-      });
-    }
-
-    // Filter by search term
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (card) =>
-          card?.phone_number?.toLowerCase().includes(search) ||
-          card?.iccid?.toLowerCase().includes(search) ||
-          card?.current_imei?.toLowerCase().includes(search) ||
-          card?.provider?.toLowerCase().includes(search)
-      );
-    }
-
-    setFilteredCards(filtered);
-  };
-
-  const openActionDialog = (type: ActionType, sim: SimCard) => {
-    setActionDialog({ open: true, type, sim });
-    setActionData({
-      date: new Date().toISOString().split("T")[0],
-      imei: sim.current_imei || "",
-      reason: "",
-      freePulsaMonths: 1,
-      grace_period_due_date: "",
-    });
-  };
-
-  const closeActionDialog = () => {
-    setActionDialog({ open: false, type: null, sim: null });
-    setActionData({ 
-      date: "", 
-      imei: "", 
-      reason: "", 
-      freePulsaMonths: 0, 
-      grace_period_due_date: "" 
-    });
-  };
-
-  const handleQuickAction = async () => {
-    if (!actionDialog.sim || !actionDialog.type) return;
-
-    try {
-      const simId = actionDialog.sim.id;
-
-      switch (actionDialog.type) {
-        case "activate":
-          await simService.activateSimCard(simId, actionData.date);
-          break;
-        case "reactivate":
-          await simService.activateSimCard(simId, actionData.date);
-          break;
-        case "grace_period":
-          if (!actionData.grace_period_due_date) {
-            alert("Tanggal batas bayar wajib diisi!");
-            return;
-          }
-          await simService.enterGracePeriod(simId, actionData.date, actionData.grace_period_due_date);
-          break;
-        case "install":
-          if (!actionData.imei) {
-            alert("IMEI wajib diisi untuk instalasi!");
-            return;
-          }
-          await simService.installSimCard(
-            simId, 
-            actionData.date, 
-            actionData.imei, 
-            actionData.freePulsaMonths
-          );
-          break;
-        case "deactivate":
-          await simService.deactivateSimCard(simId, actionData.date, actionData.reason);
-          break;
-      }
-
-      closeActionDialog();
-      loadSimCards();
-    } catch (error: any) {
-      alert(error.message || "Terjadi kesalahan");
-    }
-  };
-
-  const canActivate = (sim: SimCard) => sim.status === "WAREHOUSE";
-  const canReactivate = (sim: SimCard) => sim.status === "DEACTIVATED" || sim.status === "GRACE_PERIOD";
-  const canInstall = (sim: SimCard) => sim.status === "ACTIVATED";
-  const canDeactivate = (sim: SimCard) =>
-    sim.status !== "DEACTIVATED" && sim.status !== "WAREHOUSE";
-  const canEnterGracePeriod = (sim: SimCard) => sim.status === "INSTALLED";
-
-  const statusCounts = {
-    ALL: simCards?.length || 0,
-    WAREHOUSE: simCards?.filter((s) => s?.status === "WAREHOUSE").length || 0,
-    ACTIVATED: simCards?.filter((s) => s?.status === "ACTIVATED").length || 0,
-    INSTALLED: simCards?.filter((s) => s?.status === "INSTALLED").length || 0,
-    GRACE_PERIOD: simCards?.filter((s) => s?.status === "GRACE_PERIOD").length || 0,
-    DEACTIVATED: simCards?.filter((s) => s?.status === "DEACTIVATED").length || 0,
-  };
-
   return (
     <Layout>
-      <SEO title="Dashboard - BKT-SimCare" description="SIM Card Management Dashboard" />
+      <SEO 
+        title="Dashboard - BKT-SimCare"
+        description="SIM Card Management Dashboard"
+      />
 
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground">Manajemen kartu SIM dengan Quick Actions</p>
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Welcome to BKT-SimCare Management System
+          </p>
+        </div>
+
+        {loading && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Loading dashboard...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {error && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <p className="text-red-600">Error: {error}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!loading && !error && (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total SIM Cards
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalSims}</div>
+                <p className="text-xs text-muted-foreground">
+                  Active SIM cards in system
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Active Devices
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.activeDevices}</div>
+                <p className="text-xs text-muted-foreground">
+                  Devices currently in use
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Customers
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.customers}</div>
+                <p className="text-xs text-muted-foreground">
+                  Total registered customers
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Warehouse Stock
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.warehouse}</div>
+                <p className="text-xs text-muted-foreground">
+                  SIM cards available
+                </p>
+              </CardContent>
+            </Card>
           </div>
-        </div>
+        )}
 
-        {/* Search & Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Cari nomor SIM, ICCID, IMEI, atau provider..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-
-        {/* Status Filter Pills */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={filterStatus === "ALL" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setFilterStatus("ALL")}
-          >
-            Semua ({statusCounts.ALL})
-          </Button>
-          {(Object.keys(statusColors) as VisibleStatus[]).map((status) => (
-            <Button
-              key={status}
-              variant={filterStatus === status ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterStatus(status)}
-            >
-              {statusLabels[status]} ({statusCounts[status]})
-            </Button>
-          ))}
-        </div>
-
-        {/* SIM Cards Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Daftar Kartu SIM</CardTitle>
-            <CardDescription>
-              {filteredCards.length} kartu dari total {simCards.length} kartu
-            </CardDescription>
+            <CardTitle>Quick Access</CardTitle>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-4 text-muted-foreground">Memuat data...</p>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Navigate to different sections of the system:
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                <a 
+                  href="/sim-cards" 
+                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div className="font-medium">SIM Cards</div>
+                  <div className="text-sm text-muted-foreground">
+                    Manage your SIM card inventory
+                  </div>
+                </a>
+                <a 
+                  href="/devices" 
+                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div className="font-medium">Devices</div>
+                  <div className="text-sm text-muted-foreground">
+                    Track device assignments
+                  </div>
+                </a>
+                <a 
+                  href="/customers" 
+                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div className="font-medium">Customers</div>
+                  <div className="text-sm text-muted-foreground">
+                    Manage customer information
+                  </div>
+                </a>
+                <a 
+                  href="/history" 
+                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
+                >
+                  <div className="font-medium">History</div>
+                  <div className="text-sm text-muted-foreground">
+                    View transaction history
+                  </div>
+                </a>
               </div>
-            ) : filteredCards.length === 0 ? (
-              <div className="text-center py-12">
-                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  {searchTerm || filterStatus !== "ALL"
-                    ? "Tidak ada kartu SIM yang sesuai dengan filter"
-                    : "Belum ada kartu SIM"}
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>No SIM Card</TableHead>
-                      <TableHead>IMEI</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Paket</TableHead>
-                      <TableHead className="text-right">Biaya/Bulan</TableHead>
-                      <TableHead className="text-right">Quick Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCards.map((sim) => {
-                      const effectiveStatus = (sim.status === 'BILLING' ? 'INSTALLED' : sim.status) as VisibleStatus;
-                      const colors = statusColors[effectiveStatus] || {
-                        bg: "bg-gray-100",
-                        text: "text-gray-700",
-                        border: "border-gray-300"
-                      };
-
-                      return (
-                        <TableRow key={sim.id}>
-                          <TableCell>
-                            <Badge className={`${colors.bg} ${colors.text} border ${colors.border}`}>
-                              {statusLabels[effectiveStatus]}
-                            </Badge>
-                            {sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date && (
-                              <div className="mt-2 text-xs font-medium">
-                                <div className="text-orange-600">
-                                  Grace Period Active
-                                </div>
-                                {sim.grace_period_due_date && (
-                                  <div className="text-gray-500">
-                                    Due: {sim.grace_period_due_date}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              <Smartphone className="h-4 w-4 text-muted-foreground" />
-                              <span>{sim.phone_number}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Zap className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{sim.current_imei || "-"}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{sim.provider || "-"}</TableCell>
-                          <TableCell>{sim.plan_name || "-"}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            {sim.monthly_cost ? `Rp ${sim.monthly_cost.toLocaleString("id-ID")}` : "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex gap-1 justify-end">
-                              {canActivate(sim) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openActionDialog("activate", sim)}
-                                  className="h-8"
-                                >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Aktivasi
-                                </Button>
-                              )}
-                              {canReactivate(sim) && sim.status === "DEACTIVATED" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openActionDialog("reactivate", sim)}
-                                  className="h-8"
-                                >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Reaktivasi
-                                </Button>
-                              )}
-                              {canInstall(sim) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openActionDialog("install", sim)}
-                                  className="h-8"
-                                >
-                                  <Smartphone className="h-3 w-3 mr-1" />
-                                  Instalasi
-                                </Button>
-                              )}
-                              
-                              {canEnterGracePeriod(sim) && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openActionDialog("grace_period", sim)}
-                                  className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
-                                >
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Grace Period
-                                </Button>
-                              )}
-
-                              {sim.status === 'GRACE_PERIOD' && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openActionDialog("reactivate", sim)}
-                                    className="h-8 text-green-600 border-green-200 hover:bg-green-50"
-                                  >
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    Reaktivasi
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openActionDialog("deactivate", sim)}
-                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
-                                  >
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    Non-Aktifkan
-                                  </Button>
-                                </>
-                              )}
-
-                              {canDeactivate(sim) && sim.status !== 'GRACE_PERIOD' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openActionDialog("deactivate", sim)}
-                                  className="h-8"
-                                >
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                  Non-aktifkan
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            </div>
           </CardContent>
         </Card>
-
-        {/* Quick Action Dialog */}
-        <Dialog open={actionDialog.open} onOpenChange={closeActionDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {actionDialog.type === "activate" && "Aktivasi Kartu SIM"}
-                {actionDialog.type === "reactivate" && "Reaktivasi Kartu SIM"}
-                {actionDialog.type === "install" && "Instalasi Kartu SIM"}
-                {actionDialog.type === "deactivate" && "Non-aktifkan Kartu SIM"}
-                {actionDialog.type === "grace_period" && "Masukkan Ke Periode Pengingat"}
-              </DialogTitle>
-              <DialogDescription>
-                {actionDialog.sim && (
-                  <span>
-                    No SIM: <strong>{actionDialog.sim.phone_number}</strong>
-                    {actionDialog.sim.iccid && (
-                      <span className="text-xs text-muted-foreground ml-2">
-                        (ICCID: {actionDialog.sim.iccid})
-                      </span>
-                    )}
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="action-date">Tanggal</Label>
-                <Input
-                  id="action-date"
-                  type="date"
-                  value={actionData.date}
-                  onChange={(e) => setActionData({ ...actionData, date: e.target.value })}
-                />
-              </div>
-
-              {actionDialog.type === "install" && (
-                <div className="space-y-2">
-                  <Label htmlFor="action-imei">IMEI Device *</Label>
-                  <Input
-                    id="action-imei"
-                    placeholder="Masukkan IMEI device"
-                    value={actionData.imei}
-                    onChange={(e) => setActionData({ ...actionData, imei: e.target.value })}
-                  />
-                </div>
-              )}
-
-              {actionDialog.type === "install" && (
-                <div className="space-y-2">
-                  <Label htmlFor="action-free-pulsa-months">Bulan Free Pulsa</Label>
-                  <Select
-                    value={actionData.freePulsaMonths.toString()}
-                    onValueChange={(value) => setActionData({ ...actionData, freePulsaMonths: parseInt(value) })}
-                  >
-                    <SelectTrigger id="action-free-pulsa-months">
-                      <SelectValue placeholder="Pilih durasi" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 Bulan</SelectItem>
-                      <SelectItem value="2">2 Bulan</SelectItem>
-                      <SelectItem value="3">3 Bulan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Biaya free pulsa akan dihitung berdasarkan durasi ini.
-                  </p>
-                </div>
-              )}
-
-              {actionDialog.type === "grace_period" && (
-                <div className="space-y-2">
-                  <Label htmlFor="action-due-date">Batas Bayar Langganan Pulsa</Label>
-                  <Input
-                    id="action-due-date"
-                    type="date"
-                    value={actionData.grace_period_due_date}
-                    onChange={(e) => setActionData({ ...actionData, grace_period_due_date: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan.
-                  </p>
-                </div>
-              )}
-
-              {actionDialog.type === "deactivate" && (
-                <div className="space-y-2">
-                  <Label htmlFor="action-reason">Alasan (Opsional)</Label>
-                  <Textarea
-                    id="action-reason"
-                    placeholder="Alasan deaktivasi..."
-                    value={actionData.reason}
-                    onChange={(e) => setActionData({ ...actionData, reason: e.target.value })}
-                  />
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={closeActionDialog}>
-                Batal
-              </Button>
-              <Button onClick={handleQuickAction}>
-                {actionDialog.type === "activate" && "Aktivasi"}
-                {actionDialog.type === "reactivate" && "Reaktivasi"}
-                {actionDialog.type === "install" && "Instalasi"}
-                {actionDialog.type === "deactivate" && "Non-aktifkan"}
-                {actionDialog.type === "grace_period" && "Simpan Grace Period"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </Layout>
   );
