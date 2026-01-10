@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import { ThemeSwitch } from "./ThemeSwitch";
 import { 
-  SimCard, 
+  CreditCard, 
   Smartphone, 
   Users, 
   History, 
@@ -19,7 +19,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "SIM Cards", href: "/sim-cards", icon: SimCard },
+    { name: "SIM Cards", href: "/sim-cards", icon: CreditCard },
     { name: "Devices", href: "/devices", icon: Smartphone },
     { name: "Customers", href: "/customers", icon: Users },
     { name: "History", href: "/history", icon: History },
@@ -62,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
 
             <Link href="/" className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                <SimCard className="h-5 w-5 text-primary-foreground" />
+                <CreditCard className="h-5 w-5 text-primary-foreground" />
               </div>
               <span className="font-bold text-xl">BKT-SimCare</span>
             </Link>

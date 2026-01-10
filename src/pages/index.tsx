@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  SimCard, 
+  CreditCard, 
   Smartphone, 
   Users, 
   Activity,
@@ -17,7 +17,7 @@ export default function Home() {
       title: "Total SIM Cards",
       value: "2",
       change: "+0 this month",
-      icon: SimCard,
+      icon: CreditCard,
       color: "text-blue-600"
     },
     {
@@ -185,7 +185,7 @@ export default function Home() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <h4 className="font-semibold flex items-center gap-2">
-                  <SimCard className="h-4 w-4 text-primary" />
+                  <CreditCard className="h-4 w-4 text-primary" />
                   SIM Lifecycle Management
                 </h4>
                 <p className="text-sm text-muted-foreground">
