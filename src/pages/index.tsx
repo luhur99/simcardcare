@@ -37,7 +37,9 @@ import { SimCard, SimStatus } from "@/lib/supabase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Status color mapping
-const statusColors: Record<SimStatus, { bg: string; text: string; border: string }> = {
+type VisibleStatus = Exclude<SimStatus, "BILLING">;
+
+const statusColors: Record<VisibleStatus, { bg: string; text: string; border: string }> = {
   WAREHOUSE: { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-300" },
   ACTIVATED: { bg: "bg-blue-100", text: "text-blue-700", border: "border-blue-300" },
   INSTALLED: { bg: "bg-green-100", text: "text-green-700", border: "border-green-300" },
@@ -45,7 +47,7 @@ const statusColors: Record<SimStatus, { bg: string; text: string; border: string
   DEACTIVATED: { bg: "bg-red-100", text: "text-red-700", border: "border-red-300" },
 };
 
-const statusLabels: Record<SimStatus, string> = {
+const statusLabels: Record<VisibleStatus, string> = {
   WAREHOUSE: "Warehouse",
   ACTIVATED: "Activated",
   INSTALLED: "Installed",
@@ -59,7 +61,7 @@ export default function Home() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [filteredCards, setFilteredCards] = useState<SimCard[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<SimStatus | "ALL">("ALL");
+  const [filterStatus, setFilterStatus] = useState<VisibleStatus | "ALL">("ALL");
   const [loading, setLoading] = useState(true);
 
   // Quick Action Dialog
@@ -220,7 +222,7 @@ export default function Home() {
           >
             Semua ({statusCounts.ALL})
           </Button>
-          {(Object.keys(statusColors) as SimStatus[]).map((status) => (
+          {(Object.keys(statusColors) as VisibleStatus[]).map((status) => (
             <Button
               key={status}
               variant={filterStatus === status ? "default" : "outline"}
@@ -271,12 +273,14 @@ export default function Home() {
                   </TableHeader>
                   <TableBody>
                     {filteredCards.map((sim) => {
-                      const colors = statusColors[sim.status];
+                      // Fallback for migrated data or type safety: treat BILLING as INSTALLED visual
+                      const effectiveStatus = (sim.status === 'BILLING' ? 'INSTALLED' : sim.status) as VisibleStatus;
+                      const colors = statusColors[effectiveStatus];
                       return (
                         <TableRow key={sim.id}>
                           <TableCell>
                             <Badge className={`${colors.bg} ${colors.text} border ${colors.border}`}>
-                              {statusLabels[sim.status]}
+                              {statusLabels[effectiveStatus]}
                             </Badge>
                           </TableCell>
                           <TableCell className="font-medium">
