@@ -193,6 +193,59 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Stats Cards - Add Grace Period Metrics */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total SIM Cards</CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{simCards.length}</div>
+              <p className="text-xs text-muted-foreground">Registered in system</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active/Installed</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {simCards.filter(s => s.status === 'INSTALLED' || s.status === 'ACTIVATED').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Currently operational</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Grace Period</CardTitle>
+              <AlertCircle className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {simCards.filter(s => s.status === 'GRACE_PERIOD').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Free pulse period</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Warehouse</CardTitle>
+              <Smartphone className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {simCards.filter(s => s.status === 'WAREHOUSE').length}
+              </div>
+              <p className="text-xs text-muted-foreground">Ready to activate</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Search & Filters */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">

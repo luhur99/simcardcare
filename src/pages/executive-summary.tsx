@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Download, TrendingDown, Ghost, DollarSign, Calendar } from "lucide-react";
+import { AlertTriangle, Download, TrendingDown, Ghost, DollarSign, Calendar, CheckCircle2 } from "lucide-react";
 import { simService } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
 
@@ -14,6 +14,8 @@ interface LeakageMetrics {
   totalMTDLeakage: number;
   ghostSimCount: number;
   ghostSimCost: number;
+  gracePeriodCount: number;
+  gracePeriodCost: number;
   topLeakageSims: LeakageSimCard[];
 }
 
@@ -33,6 +35,8 @@ export default function ExecutiveSummary() {
     totalMTDLeakage: 0,
     ghostSimCount: 0,
     ghostSimCost: 0,
+    gracePeriodCount: 0,
+    gracePeriodCost: 0,
     topLeakageSims: []
   });
   const [loading, setLoading] = useState(true);
@@ -95,6 +99,18 @@ export default function ExecutiveSummary() {
       return total + (daysSinceActivation * dailyRate);
     }, 0);
 
+    // Calculate Grace Period Cost
+    const gracePeriodSims = sims.filter(sim => sim.status === "GRACE_PERIOD");
+    const gracePeriodCost = gracePeriodSims.reduce((total, sim) => {
+      if (!sim.installation_date) return total;
+      
+      const installDate = new Date(sim.installation_date);
+      const endDate = sim.deactivation_date ? new Date(sim.deactivation_date) : now;
+      const graceDays = Math.floor((endDate.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
+      const dailyRate = sim.monthly_cost / 30;
+      return total + (graceDays * dailyRate);
+    }, 0);
+
     // Calculate overlap leakage (multiple SIMs on same IMEI in a period)
     const leakageSims: LeakageSimCard[] = [];
     
@@ -115,7 +131,7 @@ export default function ExecutiveSummary() {
         const installDate = new Date(sim.installation_date);
         const graceDays = Math.floor((now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
         leakageDays = graceDays;
-        reason = "Grace Period - Should be billing";
+        reason = "Grace Period - Free pulse cost (company burden)";
       }
       
       // Scenario 3: Recently deactivated (was billing until deactivation)
@@ -154,6 +170,8 @@ export default function ExecutiveSummary() {
       totalMTDLeakage,
       ghostSimCount: ghostSims.length,
       ghostSimCost,
+      gracePeriodCount: gracePeriodSims.length,
+      gracePeriodCost,
       topLeakageSims: leakageSims.slice(0, 10)
     };
   };
@@ -329,6 +347,9 @@ export default function ExecutiveSummary() {
       csvRows.push(`Total MTD Leakage,${metrics.totalMTDLeakage.toFixed(2)}`);
       csvRows.push(`Ghost SIM Count,${metrics.ghostSimCount}`);
       csvRows.push(`Ghost SIM Cost,${metrics.ghostSimCost.toFixed(2)}`);
+      csvRows.push(`Grace Period Count,${metrics.gracePeriodCount}`);
+      csvRows.push(`Grace Period Cost,${metrics.gracePeriodCost.toFixed(2)}`);
+      csvRows.push(`Overlap Cost,${overlapDetails.totalOverlapCost.toFixed(2)}`);
       csvRows.push(`Export Date,${new Date().toISOString()}`);
       
       const csvContent = csvRows.join("\n");
@@ -386,7 +407,7 @@ export default function ExecutiveSummary() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           {/* Total MTD Leakage */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -400,25 +421,7 @@ export default function ExecutiveSummary() {
                 {formatCurrency(metrics.totalMTDLeakage)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Accumulated cost from overlapping and inactive SIMs
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Ghost SIM Count */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Ghost SIM Cards
-              </CardTitle>
-              <Ghost className="h-4 w-4 text-orange-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {metrics.ghostSimCount} <span className="text-sm font-normal text-muted-foreground">cards</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Activated but not yet installed
+                Accumulated cost from all leakage sources
               </p>
             </CardContent>
           </Card>
@@ -429,14 +432,50 @@ export default function ExecutiveSummary() {
               <CardTitle className="text-sm font-medium">
                 Ghost SIM Cost
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-yellow-500" />
+              <Ghost className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
                 {formatCurrency(metrics.ghostSimCost)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Total cost from {metrics.ghostSimCount} ghost SIM cards
+                {metrics.ghostSimCount} cards activated but not installed
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Grace Period Cost */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Grace Period Cost
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">
+                {formatCurrency(metrics.gracePeriodCost)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {metrics.gracePeriodCount} cards in free pulse period
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Overlap Cost */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Overlap Cost (Monthly)
+              </CardTitle>
+              <TrendingDown className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">
+                {formatCurrency(overlapDetails.totalOverlapCost)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {overlapDetails.overlapSims.length} cards with overlap issues
               </p>
             </CardContent>
           </Card>
@@ -586,6 +625,164 @@ export default function ExecutiveSummary() {
                   </p>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Grace Period Cost Details */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-yellow-500" />
+                  Detail Biaya Periode Pulsa Gratis (Grace Period)
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Biaya yang ditanggung perusahaan untuk pulsa gratis selama masa transisi ke billing
+                </CardDescription>
+              </div>
+              <Badge variant="secondary" className="text-sm">
+                {simCards.filter(s => s.status === 'GRACE_PERIOD').length} cards in grace
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {simCards.filter(s => s.status === 'GRACE_PERIOD').length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                <p className="text-muted-foreground">Tidak ada SIM dalam grace period</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Semua SIM sudah dalam status billing normal
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Summary Stats */}
+                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Total Biaya Grace Period</div>
+                      <div className="text-3xl font-bold text-yellow-600 mt-2">
+                        {formatCurrency(metrics.gracePeriodCost)}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Ditanggung perusahaan (pulsa gratis)
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Jumlah SIM Grace Period</div>
+                      <div className="text-3xl font-bold mt-2">
+                        {metrics.gracePeriodCount} <span className="text-sm font-normal text-muted-foreground">cards</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Belum mulai billing
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-sm text-muted-foreground">Rata-rata Biaya per SIM</div>
+                      <div className="text-3xl font-bold mt-2">
+                        {metrics.gracePeriodCount > 0 
+                          ? formatCurrency(metrics.gracePeriodCost / metrics.gracePeriodCount)
+                          : formatCurrency(0)
+                        }
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Per kartu dalam grace period
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Grace Period Details Table */}
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>No SIM Card</TableHead>
+                        <TableHead>ICCID</TableHead>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Tanggal Instalasi</TableHead>
+                        <TableHead className="text-right">Hari Grace</TableHead>
+                        <TableHead className="text-right">Biaya Bulanan</TableHead>
+                        <TableHead className="text-right">Biaya Harian</TableHead>
+                        <TableHead className="text-right">Total Biaya Grace</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {simCards
+                        .filter(s => s.status === 'GRACE_PERIOD')
+                        .map((sim, index) => {
+                          const now = new Date();
+                          const installDate = sim.installation_date ? new Date(sim.installation_date) : null;
+                          const graceDays = installDate 
+                            ? Math.floor((now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24))
+                            : 0;
+                          const dailyRate = sim.monthly_cost / 30;
+                          const totalGraceCost = graceDays * dailyRate;
+
+                          return (
+                            <TableRow key={sim.id}>
+                              <TableCell className="font-medium">{index + 1}</TableCell>
+                              <TableCell className="font-mono">{sim.phone_number}</TableCell>
+                              <TableCell className="font-mono text-sm">{sim.iccid || "-"}</TableCell>
+                              <TableCell>{sim.provider}</TableCell>
+                              <TableCell className="text-sm">
+                                {installDate 
+                                  ? installDate.toLocaleDateString("id-ID", { 
+                                      day: "2-digit", 
+                                      month: "short",
+                                      year: "numeric"
+                                    })
+                                  : "-"
+                                }
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">{graceDays}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(sim.monthly_cost)}</TableCell>
+                              <TableCell className="text-right text-sm text-muted-foreground">
+                                {formatCurrency(dailyRate)}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-yellow-600">
+                                {formatCurrency(totalGraceCost)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Formula Explanation */}
+                <div className="mt-6 p-4 bg-muted rounded-lg">
+                  <h4 className="text-sm font-semibold mb-2">📊 Penjelasan Grace Period:</h4>
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    <p>
+                      <strong>Grace Period</strong> adalah periode di mana SIM sudah terinstal dan digunakan, 
+                      tetapi customer belum dikenakan biaya (pulsa gratis dari perusahaan).
+                    </p>
+                    <p className="mt-2">
+                      <strong>Formula Perhitungan:</strong>
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Biaya Harian = Biaya Bulanan ÷ 30 hari</li>
+                      <li>Hari Grace = Hari ini - Tanggal Instalasi</li>
+                      <li>Total Biaya Grace = Biaya Harian × Hari Grace</li>
+                    </ul>
+                    <p className="mt-2 text-xs">
+                      <strong>Contoh:</strong> Jika biaya bulanan Rp 150.000 dan sudah 10 hari dalam grace period:<br />
+                      Biaya Harian = Rp 150.000 ÷ 30 = Rp 5.000<br />
+                      Total Biaya Grace = Rp 5.000 × 10 = Rp 50.000 (ditanggung perusahaan)
+                    </p>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

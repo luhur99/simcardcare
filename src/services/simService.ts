@@ -48,6 +48,31 @@ export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
   };
 }
 
+// Calculate Grace Period Cost
+export function calculateGracePeriodCost(sim: SimCard): {
+  gracePeriodDays: number;
+  gracePeriodCost: number;
+} {
+  if (sim.status !== 'GRACE_PERIOD' || !sim.installation_date) {
+    return { gracePeriodDays: 0, gracePeriodCost: 0 };
+  }
+
+  const now = new Date();
+  const installDate = new Date(sim.installation_date);
+  const monthlyRate = sim.monthly_cost || 0;
+  const dailyRate = monthlyRate / 30;
+
+  // Grace period = dari installation sampai sekarang (atau deactivation date)
+  const endDate = sim.deactivation_date ? new Date(sim.deactivation_date) : now;
+  const gracePeriodDays = Math.floor((endDate.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
+  const gracePeriodCost = gracePeriodDays * dailyRate;
+
+  return {
+    gracePeriodDays,
+    gracePeriodCost
+  };
+}
+
 // Mock Data for initial setup
 const MOCK_SIMS: SimCard[] = [
   {
