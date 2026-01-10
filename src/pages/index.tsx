@@ -70,7 +70,13 @@ export default function Home() {
     type: ActionType | null;
     sim: SimCard | null;
   }>({ open: false, type: null, sim: null });
-  const [actionData, setActionData] = useState({
+  const [actionData, setActionData] = useState<{
+    date: string;
+    imei: string;
+    reason: string;
+    freePulsaMonths: number;
+    grace_period_due_date: string;
+  }>({
     date: new Date().toISOString().split("T")[0],
     imei: "",
     reason: "",
@@ -133,12 +139,13 @@ export default function Home() {
       imei: sim.current_imei || "",
       reason: "",
       freePulsaMonths: 1,
+      grace_period_due_date: "",
     });
   };
 
   const closeActionDialog = () => {
     setActionDialog({ open: false, type: null, sim: null });
-    setActionData({ date: "", imei: "", reason: "", freePulsaMonths: 0 });
+    setActionData({ date: "", imei: "", reason: "", freePulsaMonths: 0, grace_period_due_date: "" });
   };
 
   const handleQuickAction = async () => {
@@ -153,6 +160,13 @@ export default function Home() {
           break;
         case "reactivate":
           await simService.activateSimCard(simId, actionData.date);
+          break;
+        case "grace_period":
+          if (!actionData.grace_period_due_date) {
+            alert("Tanggal batas bayar wajib diisi!");
+            return;
+          }
+          await simService.enterGracePeriod(simId, actionData.date, actionData.grace_period_due_date);
           break;
         case "install":
           if (!actionData.imei) {
@@ -289,6 +303,33 @@ export default function Home() {
                             <Badge className={`${colors.bg} ${colors.text} border ${colors.border}`}>
                               {statusLabels[effectiveStatus]}
                             </Badge>
+                            {sim.status === 'GRACE_PERIOD' && sim.grace_period_start_date && (
+                              <div className="mt-2 text-xs font-medium">
+                                {(() => {
+                                  const start = new Date(sim.grace_period_start_date);
+                                  const now = new Date();
+                                  const diffTime = Math.abs(now.getTime() - start.getTime());
+                                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                  
+                                  let colorClass = "text-green-600";
+                                  if (diffDays > 5 && diffDays <= 10) colorClass = "text-yellow-600";
+                                  if (diffDays > 10) colorClass = "text-red-600";
+
+                                  return (
+                                    <div className="flex flex-col gap-1">
+                                      <span className={colorClass}>
+                                        Overdue: {diffDays} hari
+                                      </span>
+                                      {sim.grace_period_due_date && (
+                                        <span className="text-gray-500">
+                                          Due: {sim.grace_period_due_date}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
@@ -342,7 +383,43 @@ export default function Home() {
                                   Instalasi
                                 </Button>
                               )}
-                              {canDeactivate(sim) && (
+                              
+                              {canEnterGracePeriod(sim) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openActionDialog("grace_period", sim)}
+                                  className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                >
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Grace Period
+                                </Button>
+                              )}
+
+                              {sim.status === 'GRACE_PERIOD' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openActionDialog("reactivate", sim)}
+                                    className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                  >
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    Reaktivasi
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openActionDialog("deactivate", sim)}
+                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Non-Aktifkan
+                                  </Button>
+                                </>
+                              )}
+
+                              {canDeactivate(sim) && sim.status !== 'GRACE_PERIOD' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -435,6 +512,21 @@ export default function Home() {
                 </div>
               )}
 
+              {actionDialog.type === "grace_period" && (
+                <div className="space-y-2">
+                  <Label htmlFor="action-due-date">Batas Bayar Langganan Pulsa</Label>
+                  <Input
+                    id="action-due-date"
+                    type="date"
+                    value={actionData.grace_period_due_date}
+                    onChange={(e) => setActionData({ ...actionData, grace_period_due_date: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan.
+                  </p>
+                </div>
+              )}
+
               {actionDialog.type === "deactivate" && (
                 <div className="space-y-2">
                   <Label htmlFor="action-reason">Alasan (Opsional)</Label>
@@ -457,6 +549,7 @@ export default function Home() {
                 {actionDialog.type === "reactivate" && "Reaktivasi"}
                 {actionDialog.type === "install" && "Instalasi"}
                 {actionDialog.type === "deactivate" && "Non-aktifkan"}
+                {actionDialog.type === "grace_period" && "Simpan Grace Period"}
               </Button>
             </DialogFooter>
           </DialogContent>

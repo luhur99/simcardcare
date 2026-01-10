@@ -476,14 +476,15 @@ export const simService = {
     });
   },
 
-  async enterGracePeriod(id: string, gracePeriodStartDate: string): Promise<SimCard> {
+  async enterGracePeriod(id: string, gracePeriodStartDate: string, dueDate?: string): Promise<SimCard> {
     // Check previous status for Reactivation logic
     const currentSim = await this.getSimCardById(id);
     const isReactivation = currentSim?.status === 'DEACTIVATED';
 
     return this.updateSimCard(id, {
       status: 'GRACE_PERIOD',
-      activation_date: gracePeriodStartDate,
+      grace_period_start_date: gracePeriodStartDate,
+      grace_period_due_date: dueDate,
       is_reactivated: isReactivation
     });
   },
