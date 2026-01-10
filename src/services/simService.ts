@@ -1,51 +1,82 @@
 import { supabase, SimCard, Device, Customer, SimStatus, DailyBurdenResult, DailyBurdenLog } from "@/lib/supabase";
 
+// Helper to safely access localStorage (prevent SSR errors)
+const getLocalStorage = (key: string): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.error('localStorage error:', error);
+    return null;
+  }
+};
+
+const setLocalStorage = (key: string, value: string): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, value);
+  } catch (error) {
+    console.error('localStorage error:', error);
+  }
+};
+
 // Helper to calculate daily burden (client-side for mock data)
 export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
-  const monthlyRate = sim.monthly_cost || 0;
-  const dailyRate = monthlyRate / 30;
+  try {
+    const monthlyRate = sim.monthly_cost || 0;
+    const dailyRate = monthlyRate / 30;
 
-  let overlap1Days = 0;
-  let overlap1Cost = 0;
-  let overlap2Days = 0;
-  let overlap2Cost = 0;
+    let overlap1Days = 0;
+    let overlap1Cost = 0;
+    let overlap2Days = 0;
+    let overlap2Cost = 0;
 
-  // OVERLAP 1: Activation Date → Installation Date
-  if (sim.activation_date && sim.installation_date) {
-    const activationDate = new Date(sim.activation_date);
-    const installationDate = new Date(sim.installation_date);
-    
-    if (installationDate > activationDate) {
-      overlap1Days = Math.floor((installationDate.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
-      overlap1Cost = overlap1Days * dailyRate;
+    // OVERLAP 1: Activation Date → Installation Date
+    if (sim.activation_date && sim.installation_date) {
+      const activationDate = new Date(sim.activation_date);
+      const installationDate = new Date(sim.installation_date);
+      
+      if (installationDate > activationDate) {
+        overlap1Days = Math.floor((installationDate.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+        overlap1Cost = overlap1Days * dailyRate;
+      }
     }
+
+    // OVERLAP 2: Due Date → Deactivation Date
+    if (sim.deactivation_date && sim.billing_cycle_day) {
+      const deactivationDate = new Date(sim.deactivation_date);
+      
+      // Calculate the due date (last billing cycle day before deactivation)
+      const dueDate = new Date(deactivationDate.getFullYear(), deactivationDate.getMonth(), sim.billing_cycle_day);
+      
+      // If due date is after deactivation, use previous month
+      if (dueDate > deactivationDate) {
+        dueDate.setMonth(dueDate.getMonth() - 1);
+      }
+
+      if (deactivationDate > dueDate) {
+        overlap2Days = Math.floor((deactivationDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        overlap2Cost = overlap2Days * dailyRate;
+      }
+    }
+
+    return {
+      overlap_1_days: overlap1Days,
+      overlap_1_cost: overlap1Cost,
+      overlap_2_days: overlap2Days,
+      overlap_2_cost: overlap2Cost,
+      total_burden: overlap1Cost + overlap2Cost
+    };
+  } catch (error) {
+    console.error('Error calculating daily burden:', error);
+    return {
+      overlap_1_days: 0,
+      overlap_1_cost: 0,
+      overlap_2_days: 0,
+      overlap_2_cost: 0,
+      total_burden: 0
+    };
   }
-
-  // OVERLAP 2: Due Date → Deactivation Date
-  if (sim.deactivation_date && sim.billing_cycle_day) {
-    const deactivationDate = new Date(sim.deactivation_date);
-    
-    // Calculate the due date (last billing cycle day before deactivation)
-    const dueDate = new Date(deactivationDate.getFullYear(), deactivationDate.getMonth(), sim.billing_cycle_day);
-    
-    // If due date is after deactivation, use previous month
-    if (dueDate > deactivationDate) {
-      dueDate.setMonth(dueDate.getMonth() - 1);
-    }
-
-    if (deactivationDate > dueDate) {
-      overlap2Days = Math.floor((deactivationDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-      overlap2Cost = overlap2Days * dailyRate;
-    }
-  }
-
-  return {
-    overlap_1_days: overlap1Days,
-    overlap_1_cost: overlap1Cost,
-    overlap_2_days: overlap2Days,
-    overlap_2_cost: overlap2Cost,
-    total_burden: overlap1Cost + overlap2Cost
-  };
 }
 
 // Calculate Grace Period Cost
@@ -193,138 +224,173 @@ const STORAGE_KEYS = {
 
 // Initialize LocalStorage if empty
 if (typeof window !== 'undefined') {
-  if (!localStorage.getItem(STORAGE_KEYS.SIMS)) {
+  if (!getLocalStorage(STORAGE_KEYS.SIMS)) {
     // Calculate accumulated costs for mock data
     const mockSimsWithCosts = MOCK_SIMS.map(sim => ({
       ...sim,
       accumulated_cost: calculateDailyBurden(sim).total_burden
     }));
-    localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(mockSimsWithCosts));
+    setLocalStorage(STORAGE_KEYS.SIMS, JSON.stringify(mockSimsWithCosts));
   }
-  if (!localStorage.getItem(STORAGE_KEYS.DEVICES)) {
-    localStorage.setItem(STORAGE_KEYS.DEVICES, JSON.stringify(MOCK_DEVICES));
+  if (!getLocalStorage(STORAGE_KEYS.DEVICES)) {
+    setLocalStorage(STORAGE_KEYS.DEVICES, JSON.stringify(MOCK_DEVICES));
   }
 }
 
 export const simService = {
   async getSimCards(): Promise<SimCard[]> {
-    if (isSupabaseConnected()) {
-      const { data, error } = await supabase.from('sim_cards').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as SimCard[];
-    } else {
-      // Mock Implementation
-      const data = localStorage.getItem(STORAGE_KEYS.SIMS);
-      return data ? JSON.parse(data) : [];
+    try {
+      if (isSupabaseConnected()) {
+        const { data, error } = await supabase.from('sim_cards').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return Array.isArray(data) ? data as SimCard[] : [];
+      } else {
+        // Mock Implementation with safe localStorage
+        const data = getLocalStorage(STORAGE_KEYS.SIMS);
+        if (!data) return [];
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch (error) {
+      console.error('Error in getSimCards:', error);
+      return [];
     }
   },
 
   async getSimCardById(id: string): Promise<SimCard | null> {
-    if (isSupabaseConnected()) {
-      const { data, error } = await supabase.from('sim_cards').select('*').eq('id', id).single();
-      if (error) throw error;
-      return data as SimCard;
-    } else {
-      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
-      return sims.find((s: SimCard) => s.id === id) || null;
+    try {
+      if (isSupabaseConnected()) {
+        const { data, error } = await supabase.from('sim_cards').select('*').eq('id', id).single();
+        if (error) throw error;
+        return data as SimCard;
+      } else {
+        const data = getLocalStorage(STORAGE_KEYS.SIMS);
+        if (!data) return null;
+        const sims = JSON.parse(data);
+        return Array.isArray(sims) ? sims.find((s: SimCard) => s.id === id) || null : null;
+      }
+    } catch (error) {
+      console.error('Error in getSimCardById:', error);
+      return null;
     }
   },
 
   async getDevices(): Promise<Device[]> {
-    if (isSupabaseConnected()) {
-      const { data, error } = await supabase.from('devices').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Device[];
-    } else {
-      const data = localStorage.getItem(STORAGE_KEYS.DEVICES);
-      return data ? JSON.parse(data) : [];
+    try {
+      if (isSupabaseConnected()) {
+        const { data, error } = await supabase.from('devices').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return Array.isArray(data) ? data as Device[] : [];
+      } else {
+        const data = getLocalStorage(STORAGE_KEYS.DEVICES);
+        if (!data) return [];
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch (error) {
+      console.error('Error in getDevices:', error);
+      return [];
     }
   },
 
   async createSimCard(sim: Omit<SimCard, 'id' | 'created_at' | 'updated_at'>): Promise<SimCard> {
-    if (isSupabaseConnected()) {
-      const { data, error } = await supabase.from('sim_cards').insert(sim).select().single();
-      if (error) throw error;
-      return data as SimCard;
-    } else {
-      // Validation: Check phone_number uniqueness
-      const existingSims: SimCard[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
-      const phoneConflict = existingSims.find(s => s.phone_number === sim.phone_number);
-      
-      if (phoneConflict) {
-        throw new Error("Nomor SIM Card ini sudah terdaftar!");
-      }
-
-      // Validation: Mocking the Unique Active IMEI Constraint
-      if (sim.status !== 'DEACTIVATED' && sim.current_imei) {
-        const conflict = existingSims.find(s => 
-          s.status !== 'DEACTIVATED' && 
-          s.current_imei === sim.current_imei
-        );
+    try {
+      if (isSupabaseConnected()) {
+        const { data, error } = await supabase.from('sim_cards').insert(sim).select().single();
+        if (error) throw error;
+        return data as SimCard;
+      } else {
+        // Validation: Check phone_number uniqueness
+        const existingSimsData = getLocalStorage(STORAGE_KEYS.SIMS);
+        const existingSims: SimCard[] = existingSimsData ? JSON.parse(existingSimsData) : [];
+        const phoneConflict = existingSims.find(s => s.phone_number === sim.phone_number);
         
-        if (conflict) {
-          throw new Error("IMEI ini sudah terikat dengan kartu aktif lain!");
+        if (phoneConflict) {
+          throw new Error("Nomor SIM Card ini sudah terdaftar!");
         }
+
+        // Validation: Mocking the Unique Active IMEI Constraint
+        if (sim.status !== 'DEACTIVATED' && sim.current_imei) {
+          const conflict = existingSims.find(s => 
+            s.status !== 'DEACTIVATED' && 
+            s.current_imei === sim.current_imei
+          );
+          
+          if (conflict) {
+            throw new Error("IMEI ini sudah terikat dengan kartu aktif lain!");
+          }
+        }
+
+        const newSim: SimCard = {
+          ...sim,
+          id: Math.random().toString(36).substr(2, 9),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Calculate accumulated cost
+        const burden = calculateDailyBurden(newSim);
+        newSim.accumulated_cost = burden.total_burden;
+        
+        const sims = existingSims;
+        sims.unshift(newSim);
+        setLocalStorage(STORAGE_KEYS.SIMS, JSON.stringify(sims));
+        return newSim;
       }
-
-      const newSim: SimCard = {
-        ...sim,
-        id: Math.random().toString(36).substr(2, 9),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      // Calculate accumulated cost
-      const burden = calculateDailyBurden(newSim);
-      newSim.accumulated_cost = burden.total_burden;
-      
-      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
-      sims.unshift(newSim);
-      localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(sims));
-      return newSim;
+    } catch (error) {
+      console.error('Error in createSimCard:', error);
+      throw error;
     }
   },
 
   async updateSimCard(id: string, updates: Partial<SimCard>): Promise<SimCard> {
-    if (isSupabaseConnected()) {
-      const { data, error } = await supabase
-        .from('sim_cards')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as SimCard;
-    } else {
-      const sims: SimCard[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
-      const index = sims.findIndex(s => s.id === id);
-      
-      if (index === -1) {
-        throw new Error("SIM Card not found");
-      }
-
-      // IMEI validation for updates
-      if (updates.current_imei && updates.status !== 'DEACTIVATED') {
-        const conflict = sims.find(s => 
-          s.id !== id &&
-          s.status !== 'DEACTIVATED' && 
-          s.current_imei === updates.current_imei
-        );
+    try {
+      if (isSupabaseConnected()) {
+        const { data, error } = await supabase
+          .from('sim_cards')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data as SimCard;
+      } else {
+        const simsData = getLocalStorage(STORAGE_KEYS.SIMS);
+        if (!simsData) throw new Error("No SIM cards data found");
         
-        if (conflict) {
-          throw new Error("IMEI ini sudah terikat dengan kartu aktif lain!");
+        const sims: SimCard[] = JSON.parse(simsData);
+        const index = sims.findIndex(s => s.id === id);
+        
+        if (index === -1) {
+          throw new Error("SIM Card not found");
         }
+
+        // IMEI validation for updates
+        if (updates.current_imei && updates.status !== 'DEACTIVATED') {
+          const conflict = sims.find(s => 
+            s.id !== id &&
+            s.status !== 'DEACTIVATED' && 
+            s.current_imei === updates.current_imei
+          );
+          
+          if (conflict) {
+            throw new Error("IMEI ini sudah terikat dengan kartu aktif lain!");
+          }
+        }
+
+        const updatedSim = { ...sims[index], ...updates, updated_at: new Date().toISOString() };
+        
+        // Recalculate accumulated cost
+        const burden = calculateDailyBurden(updatedSim);
+        updatedSim.accumulated_cost = burden.total_burden;
+
+        sims[index] = updatedSim;
+        setLocalStorage(STORAGE_KEYS.SIMS, JSON.stringify(sims));
+        return updatedSim;
       }
-
-      const updatedSim = { ...sims[index], ...updates, updated_at: new Date().toISOString() };
-      
-      // Recalculate accumulated cost
-      const burden = calculateDailyBurden(updatedSim);
-      updatedSim.accumulated_cost = burden.total_burden;
-
-      sims[index] = updatedSim;
-      localStorage.setItem(STORAGE_KEYS.SIMS, JSON.stringify(sims));
-      return updatedSim;
+    } catch (error) {
+      console.error('Error in updateSimCard:', error);
+      throw error;
     }
   },
 
@@ -386,29 +452,43 @@ export const simService = {
   },
   
   async getStats() {
-    if (isSupabaseConnected()) {
-      const [sims, devices, customers] = await Promise.all([
-        supabase.from('sim_cards').select('status', { count: 'exact' }),
-        supabase.from('devices').select('id', { count: 'exact' }),
-        supabase.from('customers').select('id', { count: 'exact' })
-      ]);
-      
+    try {
+      if (isSupabaseConnected()) {
+        const [sims, devices, customers] = await Promise.all([
+          supabase.from('sim_cards').select('status', { count: 'exact' }),
+          supabase.from('devices').select('id', { count: 'exact' }),
+          supabase.from('customers').select('id', { count: 'exact' })
+        ]);
+        
+        return {
+          totalSims: sims.count || 0,
+          activeDevices: devices.count || 0,
+          customers: customers.count || 0,
+          warehouse: sims.data?.filter(s => s.status === 'WAREHOUSE').length || 0
+        };
+      } else {
+        const simsData = getLocalStorage(STORAGE_KEYS.SIMS);
+        const devicesData = getLocalStorage(STORAGE_KEYS.DEVICES);
+        const customersData = getLocalStorage(STORAGE_KEYS.CUSTOMERS);
+        
+        const sims = simsData ? JSON.parse(simsData) : [];
+        const devices = devicesData ? JSON.parse(devicesData) : [];
+        const customers = customersData ? JSON.parse(customersData) : [];
+        
+        return {
+          totalSims: Array.isArray(sims) ? sims.length : 0,
+          activeDevices: Array.isArray(devices) ? devices.length : 0,
+          customers: Array.isArray(customers) ? customers.length : 0,
+          warehouse: Array.isArray(sims) ? sims.filter((s: SimCard) => s.status === 'WAREHOUSE').length : 0
+        };
+      }
+    } catch (error) {
+      console.error('Error in getStats:', error);
       return {
-        totalSims: sims.count || 0,
-        activeDevices: devices.count || 0,
-        customers: customers.count || 0,
-        warehouse: sims.data?.filter(s => s.status === 'WAREHOUSE').length || 0
-      };
-    } else {
-      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
-      const devices = JSON.parse(localStorage.getItem(STORAGE_KEYS.DEVICES) || '[]');
-      const customers = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOMERS) || '[]');
-      
-      return {
-        totalSims: sims.length,
-        activeDevices: devices.length,
-        customers: customers.length,
-        warehouse: sims.filter((s: SimCard) => s.status === 'WAREHOUSE').length
+        totalSims: 0,
+        activeDevices: 0,
+        customers: 0,
+        warehouse: 0
       };
     }
   },
@@ -450,7 +530,7 @@ export const simService = {
       }
     } else {
       // Mock logic for replacement
-      const sims = JSON.parse(localStorage.getItem(STORAGE_KEYS.SIMS) || '[]');
+      const sims = JSON.parse(getLocalStorage(STORAGE_KEYS.SIMS) || '[]');
       const conflict = sims.find((s: SimCard) => 
         s.current_imei === imei && 
         s.status !== 'DEACTIVATED' && 
