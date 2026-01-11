@@ -563,7 +563,7 @@ export default function SimCardsPage() {
       case "grace_period":
         return "Masukkan tanggal dan batas bayar langganan pulsa untuk periode pengingat.";
       case "reactivate":
-        return "Konfirmasi reaktivasi kartu SIM setelah pembayaran diterima.";
+        return "Reaktivasi kartu SIM setelah pembayaran diterima. Status akan kembali ke INSTALLED dengan data device sebelumnya.";
       case "deactivate":
         return "Masukkan alasan deaktivasi kartu SIM.";
       default:
@@ -1248,6 +1248,20 @@ export default function SimCardsPage() {
                 </DialogContent>
               </Dialog>
 
+              {actionDialog.type === "reactivate" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reactivation-date">Tanggal Reaktivasi</Label>
+                    <Input
+                      id="reactivation-date"
+                      type="date"
+                      value={reactivationDate}
+                      onChange={(e) => setReactivationDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
               {actionDialog.type === "deactivate" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -1281,6 +1295,7 @@ export default function SimCardsPage() {
                 {actionDialog.type === "install" && "Install"}
                 {actionDialog.type === "billing" && "Move to Billing"}
                 {actionDialog.type === "grace_period" && "Confirm Grace Period"}
+                {actionDialog.type === "reactivate" && "Reaktivasi"}
                 {actionDialog.type === "deactivate" && "Deactivate"}
               </Button>
             </DialogFooter>
