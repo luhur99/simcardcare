@@ -1161,6 +1161,16 @@ export default function SimCardsPage() {
         isOpen={isImportDialogOpen}
         onClose={() => setIsImportDialogOpen(false)}
         onImport={handleImportData}
+        entityName="SIM Cards"
+        downloadTemplateName="sim_cards_template"
+        templateColumns={[
+          { key: "Phone Number", label: "Phone Number", example: "081234567890" },
+          { key: "ICCID", label: "ICCID", example: "8962..." },
+          { key: "Provider", label: "Provider", example: "Telkomsel" },
+          { key: "Package", label: "Package", example: "25GB" },
+          { key: "Monthly Cost", label: "Monthly Cost", example: "150000" },
+          { key: "Status", label: "Status", example: "WAREHOUSE" }
+        ]}
       />
     </Layout>
   );

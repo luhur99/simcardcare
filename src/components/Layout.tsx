@@ -28,9 +28,10 @@ import {
 
 interface LayoutProps {
   children: ReactNode;
+  title?: string;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, title }: LayoutProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 

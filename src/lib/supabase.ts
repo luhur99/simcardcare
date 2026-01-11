@@ -38,6 +38,7 @@ export interface SimCard {
   free_pulsa: number | null; // ⭐ NEW: Monetary amount (Rp)
   grace_period_start_date: string | null;
   grace_period_due_date: string | null;
+  reactivation_date: string | null;
   is_reactivated: boolean;
   replacement_reason: string | null;
   notes: string | null;
