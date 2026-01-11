@@ -583,12 +583,6 @@ export default function SimCardsPage() {
     try {
       setIsSubmitting(true);
 
-      // NEW LOGIC:
-      // Grace Period Start = Billing Cycle Day (tanggal jatuh tempo)
-      // Batas Bayar = Billing Cycle Day (sama dengan Grace Period Start)
-      // Admin harus manual deactivate dalam max 30 hari
-      // Jika >30 hari, sistem kirim alert ke admin
-      
       const billingDay = actionDialog.sim.billing_cycle_day;
       
       if (!billingDay) {
@@ -600,22 +594,30 @@ export default function SimCardsPage() {
         return;
       }
 
-      // Calculate grace period start date
-      // Grace Period Start = Billing Cycle Day (tanggal jatuh tempo/batas bayar)
+      // Calculate grace period start date (billing day of current or last month)
       const today = new Date();
       const currentYear = today.getFullYear();
-      const currentMonth = today.getMonth();
+      const currentMonth = today.getMonth(); // 0-indexed (0 = January)
+      const currentDay = today.getDate();
       
-      // Grace period start = billing day of current month (batas bayar)
-      let gracePeriodStart = new Date(currentYear, currentMonth, billingDay);
+      let targetYear = currentYear;
+      let targetMonth = currentMonth;
       
-      // If today is before billing day, use last month's billing day
-      if (today.getDate() < billingDay) {
-        gracePeriodStart = new Date(currentYear, currentMonth - 1, billingDay);
+      // If today's day is before billing day, use last month's billing day
+      if (currentDay < billingDay) {
+        if (currentMonth === 0) {
+          // If January, go to December of last year
+          targetYear = currentYear - 1;
+          targetMonth = 11;
+        } else {
+          targetMonth = currentMonth - 1;
+        }
       }
 
-      // Format date as YYYY-MM-DD string for consistency
-      const gracePeriodStartStr = gracePeriodStart.toISOString().split('T')[0];
+      // Format date as YYYY-MM-DD string explicitly to avoid timezone issues
+      const monthStr = String(targetMonth + 1).padStart(2, '0'); // +1 because month is 0-indexed
+      const dayStr = String(billingDay).padStart(2, '0');
+      const gracePeriodStartStr = `${targetYear}-${monthStr}-${dayStr}`;
 
       await simService.updateSimCard(actionDialog.sim.id, {
         status: "GRACE_PERIOD",
