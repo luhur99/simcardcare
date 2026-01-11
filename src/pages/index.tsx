@@ -1,10 +1,12 @@
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { Calendar } from "lucide-react";
 
 interface SimCard {
   id: string;
@@ -21,6 +23,8 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Date range state - default to last 6 months
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
     start: new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString().split('T')[0],
     end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
@@ -69,18 +73,23 @@ export default function Home() {
     };
   }, [simCards]);
 
-  // Calculate monthly data for charts
+  // Calculate monthly data for charts based on date range
   const chartData = useMemo(() => {
     if (simCards.length === 0) return [];
 
-    // Get last 6 months (current month + 5 months back)
+    // Parse date range
+    const startDate = new Date(dateRange.start);
+    const endDate = new Date(dateRange.end);
+
+    // Generate all months between start and end date
     const months: string[] = [];
-    const currentDate = new Date();
-    
-    for (let i = 5; i >= 0; i--) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const monthStr = date.toISOString().slice(0, 7); // "2026-01"
+    const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+    while (current <= end) {
+      const monthStr = current.toISOString().slice(0, 7); // "2026-01"
       months.push(monthStr);
+      current.setMonth(current.getMonth() + 1);
     }
 
     // Calculate stats for each month
@@ -117,7 +126,7 @@ export default function Home() {
     });
 
     return monthlyData;
-  }, [simCards]);
+  }, [simCards, dateRange]);
 
   if (!mounted) {
     return null;
@@ -240,6 +249,40 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Date Range Filter */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Filter Periode Grafik
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="start-date">Start Date</Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date">End Date</Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2">
