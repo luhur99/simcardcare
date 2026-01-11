@@ -114,7 +114,17 @@ export default function ProvidersPage() {
 
   // Open edit dialog
   const openEditDialog = (provider: Provider) => {
+    setDialogMode("edit");
     setSelectedProvider(provider);
+    
+    // Set individual state variables
+    setProviderName(provider.name);
+    setContactPerson(provider.contact_person || "");
+    setContactPhone(provider.contact_phone || "");
+    setContactEmail(provider.contact_email || "");
+    setNotes(provider.notes || "");
+    
+    // Set formData object
     setFormData({
       name: provider.name,
       contact_person: provider.contact_person || "",
@@ -123,7 +133,7 @@ export default function ProvidersPage() {
       billing_cycle_day: provider.billing_cycle_day || 1,
       notes: provider.notes || "",
     });
-    setDialogMode("edit");
+    
     setIsDialogOpen(true);
   };
 
@@ -158,7 +168,7 @@ export default function ProvidersPage() {
 
   // Handle submit
   const handleSubmit = async () => {
-    if (!formData.name.trim()) {
+    if (!providerName.trim()) {
       alert("Provider name is required!");
       return;
     }
@@ -166,21 +176,21 @@ export default function ProvidersPage() {
     try {
       if (dialogMode === "edit" && selectedProvider) {
         await providerService.updateProvider(selectedProvider.id, {
-          name: formData.name,
-          contact_person: formData.contact_person || undefined,
-          contact_phone: formData.contact_phone || undefined,
-          contact_email: formData.contact_email || undefined,
+          name: providerName,
+          contact_person: contactPerson || undefined,
+          contact_phone: contactPhone || undefined,
+          contact_email: contactEmail || undefined,
           billing_cycle_day: formData.billing_cycle_day || undefined,
-          notes: formData.notes || undefined,
+          notes: notes || undefined,
         });
       } else {
         await providerService.createProvider({
-          name: formData.name,
-          contact_person: formData.contact_person || undefined,
-          contact_phone: formData.contact_phone || undefined,
-          contact_email: formData.contact_email || undefined,
+          name: providerName,
+          contact_person: contactPerson || undefined,
+          contact_phone: contactPhone || undefined,
+          contact_email: contactEmail || undefined,
           billing_cycle_day: formData.billing_cycle_day || undefined,
-          notes: formData.notes || undefined,
+          notes: notes || undefined,
         });
       }
 
@@ -408,14 +418,12 @@ export default function ProvidersPage() {
                 id="contact-email"
                 type="email"
                 placeholder="e.g., contact@provider.com"
-                value={formData.contact_email}
-                onChange={(e) =>
-                  setFormData({ ...formData, contact_email: e.target.value })
-                }
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
               />
             </div>
 
-            {/* ⭐ NEW: Billing Cycle Day Input */}
+            {/* ⭐ Billing Cycle Day Input */}
             <div className="space-y-2">
               <Label htmlFor="billing-cycle-day">
                 Default Billing Cycle Day
