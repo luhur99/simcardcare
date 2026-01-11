@@ -620,9 +620,9 @@ export default function ExecutiveSummary() {
                       <TableHead>ICCID</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>IMEI</TableHead>
-                      <TableHead className="text-right">Total Bulan Free Pulsa</TableHead>
-                      <TableHead className="text-right">Biaya per Bulan</TableHead>
-                      <TableHead className="text-right">Sisa Bulan</TableHead>
+                      <TableHead className="text-right">Total Free Pulsa</TableHead>
+                      <TableHead>Bulan Berjalan</TableHead>
+                      <TableHead className="text-right">Biaya/Bulan</TableHead>
                       <TableHead className="text-right">Total Biaya Free Pulsa</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -635,8 +635,10 @@ export default function ExecutiveSummary() {
                         <TableCell>{card.provider}</TableCell>
                         <TableCell className="font-mono text-sm">{card.imei || "-"}</TableCell>
                         <TableCell className="text-right">{card.freePulsaMonths} bulan</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{card.remainingMonths} bulan</Badge>
+                        </TableCell>
                         <TableCell className="text-right">{formatCurrency(card.monthlyPulsaCost)}</TableCell>
-                        <TableCell className="text-right">{card.remainingMonths} bulan</TableCell>
                         <TableCell className="text-right font-semibold text-blue-600">
                           {formatCurrency(card.totalFreePulsaCost)}
                         </TableCell>
