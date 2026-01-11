@@ -69,9 +69,13 @@ export default function ExecutiveSummary() {
 
   // Calculate Overlap Cards (from daily burden)
   const overlapCards = useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    // Use same date logic as Informasi Laporan card
+    const monthDate = new Date(selectedMonth + "-01");
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
+    
+    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
     const cards: OverlapSimCard[] = [];
 
@@ -107,9 +111,13 @@ export default function ExecutiveSummary() {
 
   // Calculate Potential Loss Cards (Grace Period + Ghost SIM)
   const potentialLossCards = useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    // Use same date logic as Informasi Laporan card
+    const monthDate = new Date(selectedMonth + "-01");
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
+    
+    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
     const now = new Date();
 
     const cards: PotentialLossSimCard[] = [];
@@ -173,9 +181,13 @@ export default function ExecutiveSummary() {
 
   // Calculate Free Pulsa Cards - using function from simService
   const freePulsaCosts = useMemo(() => {
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    // Use same date logic as Informasi Laporan card
+    const monthDate = new Date(selectedMonth + "-01");
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
+    
+    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
     const costs: Array<{
       phoneNumber: string;
