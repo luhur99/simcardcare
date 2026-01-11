@@ -1407,23 +1407,24 @@ export default function SimCardsPage() {
                                   </Badge>
                                   
                                   {/* Grace Period Details - Simple Design */}
-                                  {sim.status === "GRACE_PERIOD" && graceStatus && graceCost && (
+                                  {sim.status === "GRACE_PERIOD" && graceStatus && graceCost && sim.grace_period_start_date && (
                                     <div className="text-xs space-y-1 text-muted-foreground">
                                       <div>
-                                        <span className="font-semibold">Periode:</span> {formatDate(sim.grace_period_start_date)} s/d Sekarang
+                                        <span className="font-semibold">Start (Billing Day):</span> {formatDate(sim.grace_period_start_date)}
                                       </div>
                                       <div>
                                         <span className="font-semibold">Hari Overdue:</span> <span className="text-orange-600 font-bold">{graceCost.gracePeriodDays} hari</span>
                                       </div>
                                       <div>
-                                        <span className="font-semibold">Tarif Harian:</span> {formatCurrency(graceCost.dailyRate)}/hari
+                                        <span className="font-semibold">Tarif/hari:</span> {formatCurrency(graceCost.dailyRate)}
                                       </div>
                                       <div>
-                                        <span className="font-semibold">Biaya:</span> <span className="text-red-600 font-bold">{formatCurrency(graceCost.gracePeriodCost)}</span>
+                                        <span className="font-semibold">Total Biaya:</span> <span className="text-red-600 font-bold">{formatCurrency(graceCost.gracePeriodCost)}</span>
                                       </div>
                                       {graceStatus.exceedsMaxDuration && (
-                                        <div className="text-red-600 font-semibold">
-                                          ⚠️ OVERDUE {graceStatus.daysInGracePeriod - 30} hari!
+                                        <div className="text-red-600 font-semibold flex items-center gap-1">
+                                          <AlertTriangle className="h-3 w-3" />
+                                          OVERDUE {graceStatus.daysInGracePeriod - 30} hari!
                                         </div>
                                       )}
                                     </div>

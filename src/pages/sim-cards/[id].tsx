@@ -2,14 +2,14 @@ import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { simService, calculateDailyBurden, calculateGracePeriodCost } from "@/services/simService";
+import { simService, calculateDailyBurden, calculateGracePeriodCost, getGracePeriodStatus } from "@/services/simService";
 import { SimCard, DailyBurdenLog } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp, Gift } from "lucide-react";
+import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp, Gift, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 // ⭐ Helper function to determine billing cycle source
@@ -594,21 +594,27 @@ export default function SimCardDetailPage() {
                         <h4 className="font-semibold">Biaya Grace Period (Overdue)</h4>
                       </div>
                       <div className="pl-4 space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Periode:</span>
-                          <span className="font-medium">
-                            {formatDate(simCard.grace_period_start_date)} s/d Sekarang
-                          </span>
+                        <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded border border-blue-200 dark:border-blue-800 mb-2">
+                          <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-1">
+                            <Info className="h-3 w-3" />
+                            Grace Period Start = Billing Cycle Day (tanggal jatuh tempo pembayaran)
+                          </p>
                         </div>
-                        {simCard.grace_period_due_date && (
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Batas Bayar:</span>
-                            <span className="font-medium">{formatDate(simCard.grace_period_due_date)}</span>
-                          </div>
-                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Billing Cycle Day:</span>
+                          <span className="font-medium">Day {simCard.billing_cycle_day} setiap bulan</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Grace Period Start:</span>
+                          <span className="font-medium">{formatDate(simCard.grace_period_start_date)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tanggal Sekarang:</span>
+                          <span className="font-medium">{formatDate(new Date().toISOString())}</span>
+                        </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Jumlah Hari Overdue:</span>
-                          <span className="font-medium">{(() => {
+                          <span className="font-medium text-orange-600 font-bold">{(() => {
                             const graceCost = calculateGracePeriodCost(simCard);
                             return graceCost.gracePeriodDays;
                           })()} hari</span>
@@ -624,12 +630,23 @@ export default function SimCardDetailPage() {
                             return graceCost.gracePeriodCost;
                           })())}</span>
                         </div>
-                        <div className="bg-yellow-50 border border-yellow-200 p-2 rounded mt-2">
-                          <p className="text-xs text-yellow-800">
+                        <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-2 rounded mt-2">
+                          <p className="text-xs text-yellow-800 dark:text-yellow-200">
                             <AlertCircle className="inline h-3 w-3 mr-1" />
-                            Biaya ini akan ditambahkan ke akumulasi total saat SIM di-non-aktifkan
+                            Biaya ini akan ditambahkan ke akumulasi total saat SIM di-non-aktifkan. Max 30 hari, setelah itu admin harus manual deactivate.
                           </p>
                         </div>
+                        {(() => {
+                          const graceStatus = getGracePeriodStatus(simCard);
+                          return graceStatus.exceedsMaxDuration && (
+                            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 p-2 rounded mt-2">
+                              <p className="text-xs text-red-800 dark:text-red-200 font-semibold flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                PERINGATAN: Sudah melewati batas maksimal 30 hari! Segera lakukan deactivation! (Overdue: {graceStatus.daysInGracePeriod - 30} hari)
+                              </p>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </>
