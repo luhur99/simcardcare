@@ -32,7 +32,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Building2, Search } from "lucide-react";
+import { 
+  Plus, 
+  Pencil, 
+  Trash2, 
+  Building2, 
+  Search, 
+  Calendar 
+} from "lucide-react";
 import { providerService, Provider } from "@/services/providerService";
 
 export default function ProvidersPage() {
@@ -52,6 +59,14 @@ export default function ProvidersPage() {
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [formData, setFormData] = useState({
+    name: "",
+    contact_person: "",
+    contact_phone: "",
+    contact_email: "",
+    billing_cycle_day: 1,  // ⭐ NEW: Default to 1st of month
+    notes: "",
+  });
 
   // Delete confirmation
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -99,13 +114,16 @@ export default function ProvidersPage() {
 
   // Open edit dialog
   const openEditDialog = (provider: Provider) => {
-    setDialogMode("edit");
     setSelectedProvider(provider);
-    setProviderName(provider.name);
-    setContactPerson(provider.contact_person || "");
-    setContactPhone(provider.contact_phone || "");
-    setContactEmail(provider.contact_email || "");
-    setNotes(provider.notes || "");
+    setFormData({
+      name: provider.name,
+      contact_person: provider.contact_person || "",
+      contact_phone: provider.contact_phone || "",
+      contact_email: provider.contact_email || "",
+      billing_cycle_day: provider.billing_cycle_day || 1,
+      notes: provider.notes || "",
+    });
+    setDialogMode("edit");
     setIsDialogOpen(true);
   };
 
@@ -116,6 +134,14 @@ export default function ProvidersPage() {
     setContactPhone("");
     setContactEmail("");
     setNotes("");
+    setFormData({
+      name: "",
+      contact_person: "",
+      contact_phone: "",
+      contact_email: "",
+      billing_cycle_day: 1,
+      notes: "",
+    });
   };
 
   // Close dialog
@@ -127,27 +153,29 @@ export default function ProvidersPage() {
 
   // Handle submit
   const handleSubmit = async () => {
-    if (!providerName.trim()) {
+    if (!formData.name.trim()) {
       alert("Provider name is required!");
       return;
     }
 
     try {
-      if (dialogMode === "add") {
-        await providerService.createProvider({
-          name: providerName.trim(),
-          contact_person: contactPerson.trim() || null,
-          contact_phone: contactPhone.trim() || null,
-          contact_email: contactEmail.trim() || null,
-          notes: notes.trim() || null,
-        });
-      } else if (dialogMode === "edit" && selectedProvider) {
+      if (dialogMode === "edit" && selectedProvider) {
         await providerService.updateProvider(selectedProvider.id, {
-          name: providerName.trim(),
-          contact_person: contactPerson.trim() || null,
-          contact_phone: contactPhone.trim() || null,
-          contact_email: contactEmail.trim() || null,
-          notes: notes.trim() || null,
+          name: formData.name,
+          contact_person: formData.contact_person || undefined,
+          contact_phone: formData.contact_phone || undefined,
+          contact_email: formData.contact_email || undefined,
+          billing_cycle_day: formData.billing_cycle_day || undefined,
+          notes: formData.notes || undefined,
+        });
+      } else {
+        await providerService.createProvider({
+          name: formData.name,
+          contact_person: formData.contact_person || undefined,
+          contact_phone: formData.contact_phone || undefined,
+          contact_email: formData.contact_email || undefined,
+          billing_cycle_day: formData.billing_cycle_day || undefined,
+          notes: formData.notes || undefined,
         });
       }
 
@@ -257,9 +285,10 @@ export default function ProvidersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Provider Name</TableHead>
+                    <TableHead>Billing Cycle</TableHead>  {/* ⭐ NEW COLUMN */}
                     <TableHead>Contact Person</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Contact Phone</TableHead>
+                    <TableHead>Contact Email</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -273,27 +302,22 @@ export default function ProvidersPage() {
                           <span className="font-medium">{provider.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {provider.contact_person || (
-                          <span className="text-muted-foreground italic">
-                            Not set
-                          </span>
+                      <TableCell>  {/* ⭐ NEW COLUMN */}
+                        {provider.billing_cycle_day ? (
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Day {provider.billing_cycle_day}</span>
+                            <span className="text-xs text-muted-foreground">
+                              of month
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Not set</span>
                         )}
                       </TableCell>
-                      <TableCell>
-                        {provider.contact_phone || (
-                          <span className="text-muted-foreground italic">
-                            Not set
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {provider.contact_email || (
-                          <span className="text-muted-foreground italic">
-                            Not set
-                          </span>
-                        )}
-                      </TableCell>
+                      <TableCell>{provider.contact_person || <span className="text-muted-foreground">Not set</span>}</TableCell>
+                      <TableCell>{provider.contact_phone || <span className="text-muted-foreground">Not set</span>}</TableCell>
+                      <TableCell>{provider.contact_email || <span className="text-muted-foreground">Not set</span>}</TableCell>
                       <TableCell>
                         <Badge
                           variant={provider.is_active ? "default" : "secondary"}
@@ -383,9 +407,44 @@ export default function ProvidersPage() {
                 id="contact-email"
                 type="email"
                 placeholder="e.g., contact@provider.com"
-                value={contactEmail}
-                onChange={(e) => setContactEmail(e.target.value)}
+                value={formData.contact_email}
+                onChange={(e) =>
+                  setFormData({ ...formData, contact_email: e.target.value })
+                }
               />
+            </div>
+
+            {/* ⭐ NEW: Billing Cycle Day Input */}
+            <div className="space-y-2">
+              <Label htmlFor="billing-cycle-day">
+                Default Billing Cycle Day
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="billing-cycle-day"
+                  type="number"
+                  min="1"
+                  max="31"
+                  placeholder="1-31"
+                  value={formData.billing_cycle_day}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value);
+                    if ((val >= 1 && val <= 31) || e.target.value === "") {
+                      setFormData({ 
+                        ...formData, 
+                        billing_cycle_day: val || 1 
+                      });
+                    }
+                  }}
+                  className="w-24"
+                />
+                <span className="text-sm text-muted-foreground">
+                  Every month on day {formData.billing_cycle_day}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                💡 Tip: Gunakan 1-28 untuk konsistensi di semua bulan. Ini akan menjadi default billing cycle untuk SIM cards dari provider ini.
+              </p>
             </div>
 
             <div className="space-y-2">

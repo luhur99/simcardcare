@@ -6,28 +6,24 @@ export interface Provider {
   contact_person: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  billing_cycle_day: number | null;  // ⭐ NEW: Default billing cycle day (1-31)
   notes: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface CreateProviderInput {
+export type CreateProviderInput = {
   name: string;
-  contact_person?: string | null;
-  contact_phone?: string | null;
-  contact_email?: string | null;
-  notes?: string | null;
-}
-
-export interface UpdateProviderInput {
-  name?: string;
-  contact_person?: string | null;
-  contact_phone?: string | null;
-  contact_email?: string | null;
-  notes?: string | null;
+  contact_person?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  billing_cycle_day?: number;  // ⭐ NEW
+  notes?: string;
   is_active?: boolean;
-}
+};
+
+export type UpdateProviderInput = Partial<CreateProviderInput>;
 
 class ProviderService {
   private readonly STORAGE_KEY = "bkt_providers";
@@ -53,10 +49,11 @@ class ProviderService {
         contact_person: "Ahmad Santoso",
         contact_phone: "08123456789",
         contact_email: "ahmad@telkomsel.com",
+        billing_cycle_day: 1,  // ⭐ Billing on 1st of every month
         notes: "Main provider for corporate",
         is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: "2026-01-11T01:17:58Z",
+        updated_at: "2026-01-11T01:17:58Z"
       },
       {
         id: "provider-2",
@@ -64,10 +61,11 @@ class ProviderService {
         contact_person: "Budi Hartono",
         contact_phone: "08567891234",
         contact_email: "budi@indosat.com",
+        billing_cycle_day: 10,  // ⭐ Billing on 10th of every month
         notes: null,
         is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: "2026-01-11T01:17:58Z",
+        updated_at: "2026-01-11T01:17:58Z"
       },
       {
         id: "provider-3",
@@ -75,11 +73,12 @@ class ProviderService {
         contact_person: null,
         contact_phone: "08765432109",
         contact_email: "sales@xl.co.id",
+        billing_cycle_day: 15,  // ⭐ Billing on 15th of every month
         notes: "Backup provider",
         is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
+        created_at: "2026-01-11T01:17:58Z",
+        updated_at: "2026-01-11T01:17:58Z"
+      }
     ];
 
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(mockProviders));
@@ -125,16 +124,22 @@ class ProviderService {
 
   // Create provider
   async createProvider(input: CreateProviderInput): Promise<Provider> {
-    if (this.isSupabaseConnected) {
+    const isSupabaseConnected = false; // Will be true when Supabase is connected
+
+    if (isSupabaseConnected) {
       const { data, error } = await supabase
         .from("providers")
-        .insert({
-          name: input.name,
-          contact_person: input.contact_person,
-          contact_phone: input.contact_phone,
-          contact_email: input.contact_email,
-          notes: input.notes,
-        })
+        .insert([
+          {
+            name: input.name,
+            contact_person: input.contact_person || null,
+            contact_phone: input.contact_phone || null,
+            contact_email: input.contact_email || null,
+            billing_cycle_day: input.billing_cycle_day || null,  // ⭐ NEW
+            notes: input.notes || null,
+            is_active: true,
+          },
+        ])
         .select()
         .single();
 
@@ -142,21 +147,24 @@ class ProviderService {
       return data;
     }
 
-    const providers = this.getMockProviders();
+    // Mock implementation
     const newProvider: Provider = {
       id: `provider-${Date.now()}`,
       name: input.name,
       contact_person: input.contact_person || null,
       contact_phone: input.contact_phone || null,
       contact_email: input.contact_email || null,
+      billing_cycle_day: input.billing_cycle_day || null,  // ⭐ NEW
       notes: input.notes || null,
       is_active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
+    const providers = this.getMockProviders();
     providers.push(newProvider);
     this.saveMockProviders(providers);
+
     return newProvider;
   }
 
@@ -165,7 +173,9 @@ class ProviderService {
     id: string,
     updates: UpdateProviderInput
   ): Promise<Provider> {
-    if (this.isSupabaseConnected) {
+    const isSupabaseConnected = false;
+
+    if (isSupabaseConnected) {
       const { data, error } = await supabase
         .from("providers")
         .update({
@@ -180,6 +190,7 @@ class ProviderService {
       return data;
     }
 
+    // Mock implementation
     const providers = this.getMockProviders();
     const index = providers.findIndex((p) => p.id === id);
 
