@@ -100,7 +100,6 @@ export function ExcelImport({
         setPreviewData(jsonData.slice(0, 5)); // Show first 5 rows as preview
       } catch (error) {
         alert("Error reading Excel file. Please check the format.");
-        console.error(error);
       }
     };
     reader.readAsBinaryString(file);
@@ -123,7 +122,6 @@ export function ExcelImport({
           setImportResult(result);
         } catch (error) {
           alert("Error processing import. Please try again.");
-          console.error(error);
         } finally {
           setImporting(false);
         }
@@ -132,7 +130,6 @@ export function ExcelImport({
     } catch (error) {
       setImporting(false);
       alert("Error importing data. Please try again.");
-      console.error(error);
     }
   };
 

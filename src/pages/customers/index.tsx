@@ -60,7 +60,6 @@ export default function CustomersPage() {
         setCustomers(mockCustomers);
       }
     } catch (error) {
-      console.error("Error loading customers:", error);
       setCustomers(getMockCustomers());
     } finally {
       setLoading(false);
@@ -133,7 +132,6 @@ export default function CustomersPage() {
       closeDialog();
       await loadCustomers();
     } catch (error) {
-      console.error("Error adding customer:", error);
       alert("Failed to add customer. Please try again.");
     }
   };
@@ -166,7 +164,6 @@ export default function CustomersPage() {
       await loadCustomers();
       resetForm();
     } catch (error) {
-      console.error("Error updating customer:", error);
       alert("Failed to update customer. Please try again.");
     }
   };

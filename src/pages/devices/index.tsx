@@ -167,7 +167,6 @@ export default function DevicesPage() {
         setDevices(mockData);
       }
     } catch (error) {
-      console.error("Error loading devices:", error);
       // Fallback to mock data on error
       const mockData = await mockDeviceService.getDevices();
       setDevices(mockData);
@@ -251,7 +250,6 @@ export default function DevicesPage() {
       await loadDevices();
       setIsAddDialogOpen(false);
     } catch (error) {
-      console.error("Error adding device:", error);
       alert("Failed to add device. IMEI must be unique.");
     }
   };
@@ -287,7 +285,6 @@ export default function DevicesPage() {
       setIsEditDialogOpen(false);
       resetForm();
     } catch (error) {
-      console.error("Error updating device:", error);
       alert("Failed to update device.");
     }
   };

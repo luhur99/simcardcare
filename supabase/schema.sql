@@ -338,15 +338,19 @@ COMMENT ON COLUMN sim_cards.deactivation_date IS 'Date when SIM card was deactiv
 
 COMMENT ON CONSTRAINT unique_active_imei ON sim_cards IS 'Ensures no two active SIM cards share the same IMEI. Violation message: IMEI ini sudah terikat dengan kartu aktif lain!';
 
--- Sample data for testing (optional - remove if not needed)
-INSERT INTO customers (name, email, phone, company_name) VALUES
-('PT. Teknologi Indonesia', 'admin@teknologi.co.id', '021-12345678', 'PT. Teknologi Indonesia'),
-('CV. Digital Nusantara', 'contact@digitalnusantara.id', '021-87654321', 'CV. Digital Nusantara');
-
-INSERT INTO devices (imei, device_model, manufacturer) VALUES
-('123456789012345', 'iPhone 14 Pro', 'Apple'),
-('987654321098765', 'Samsung Galaxy S23', 'Samsung');
-
-INSERT INTO sim_cards (phone_number, iccid, provider, plan_type, status, monthly_cost, activation_date, installation_date) VALUES
-('081234567890', '89620012345678901234', 'Telkomsel', 'Corporate 50GB', 'INSTALLED', 150000, '2026-01-01', '2026-01-05'),
-('081987654321', '89620098765432109876', 'XL Axiata', 'Business Unlimited', 'WAREHOUSE', 200000, NULL, NULL);
+-- ============================================================================
+-- END OF SCHEMA DEFINITION
+-- ============================================================================
+-- 
+-- DEPLOYMENT NOTES:
+-- 1. This schema is production-ready and optimized for BKT-SimCare
+-- 2. All triggers and functions are automatically executed
+-- 3. RLS (Row Level Security) should be configured separately if needed
+-- 4. Indexes are optimized for common query patterns
+-- 5. Sample data has been removed for clean deployment
+-- 
+-- MAINTENANCE:
+-- - Regular VACUUM and ANALYZE recommended for optimal performance
+-- - Monitor daily_burden_log table size and archive old records periodically
+-- - Review and optimize indexes based on actual query patterns
+-- ============================================================================

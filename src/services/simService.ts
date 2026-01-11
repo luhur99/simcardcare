@@ -8,7 +8,6 @@ const getLocalStorage = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
   } catch (error) {
-    console.error('localStorage error:', error);
     return null;
   }
 };
@@ -18,7 +17,7 @@ const setLocalStorage = (key: string, value: string): void => {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    console.error('localStorage error:', error);
+    // Silent fail
   }
 };
 
@@ -71,7 +70,6 @@ export const getOverdueGracePeriodSims = async (): Promise<SimCard[]> => {
     });
     return overdueSims;
   } catch (error) {
-    console.error('Error getting overdue grace period SIMs:', error);
     return [];
   }
 };
@@ -145,7 +143,6 @@ export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
       total_burden: overlap1Cost + overlap2Cost
     };
   } catch (error) {
-    console.error('Error calculating daily burden:', error);
     return {
       overlap_1_days: 0,
       overlap_1_cost: 0,
@@ -341,7 +338,6 @@ export const simService = {
         return Array.isArray(parsed) ? parsed : [];
       }
     } catch (error) {
-      console.error('Error in getSimCards:', error);
       return [];
     }
   },
@@ -359,7 +355,6 @@ export const simService = {
         return Array.isArray(sims) ? sims.find((s: SimCard) => s.id === id) || null : null;
       }
     } catch (error) {
-      console.error('Error in getSimCardById:', error);
       return null;
     }
   },
@@ -377,7 +372,6 @@ export const simService = {
         return Array.isArray(parsed) ? parsed : [];
       }
     } catch (error) {
-      console.error('Error in getDevices:', error);
       return [];
     }
   },
@@ -427,7 +421,6 @@ export const simService = {
         return newSim;
       }
     } catch (error) {
-      console.error('Error in createSimCard:', error);
       throw error;
     }
   },
@@ -478,7 +471,6 @@ export const simService = {
         return updatedSim;
       }
     } catch (error) {
-      console.error('Error in updateSimCard:', error);
       throw error;
     }
   },
@@ -572,7 +564,6 @@ export const simService = {
         };
       }
     } catch (error) {
-      console.error('Error in getStats:', error);
       return {
         totalSims: 0,
         activeDevices: 0,
@@ -638,8 +629,7 @@ export const simService = {
       installation_date: installationDate,
       current_imei: imei,
       free_pulsa_months: freePulsaMonths,
-      billing_cycle_day: billingCycleDay,
-      use_installation_as_billing_cycle: useInstallationAsBillingCycle || false
+      billing_cycle_day: billingCycleDay
     });
   },
 
