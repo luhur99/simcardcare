@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
@@ -58,7 +59,7 @@ const STATUS_ICONS: Record<SimStatus, React.ReactNode> = {
   DEACTIVATED: <XCircle className="h-4 w-4" />
 };
 
-type ActionType = "activate" | "install" | "grace_period" | "reactivate" | "deactivate" | null;
+type ActionType = "activate" | "install" | "grace_period" | "reactivate" | "deactivate" | "billing" | null;
 
 export default function SimCardsPage() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
@@ -94,6 +95,14 @@ export default function SimCardsPage() {
   const [freePulsaMonths, setFreePulsaMonths] = useState<number>(0);
   const [billingCycleOption, setBillingCycleOption] = useState<"existing" | "installation" | "custom">("existing");
   const [customBillingDay, setCustomBillingDay] = useState<number>(1);
+  const [billingCycleReference, setBillingCycleReference] = useState<"existing" | "installation" | "custom">("existing");
+  const [selectedImei, setSelectedImei] = useState("");
+  const [freePulsa, setFreePulsa] = useState("0");
+  const [reactivationDate, setReactivationDate] = useState(getTodayDate());
+  
+  // Other Action States
+  const [gracePeriodDate, setGracePeriodDate] = useState(getTodayDate());
+  const [deactivationDate, setDeactivationDate] = useState(getTodayDate());
 
   // Form State for Add SIM
   const [formData, setFormData] = useState({
@@ -212,25 +221,49 @@ export default function SimCardsPage() {
     });
   };
 
-  const openActionDialog = (type: ActionType, sim: SimCard) => {
+  const openActionDialog = (sim: SimCard, action: ActionType) => {
     setActionDialog({
       isOpen: true,
-      type,
-      sim
+      type: action,
+      sim: sim,
     });
-    // Reset specific form states
-    setInstallationDate(getTodayDate());
-    setImei(sim.current_imei || "");
-    setFreePulsaMonths(0);
-    setBillingCycleOption("existing");
-    setCustomBillingDay(1);
-    
-    setActionFormData({
-      date: new Date().toISOString().split("T")[0],
-      dueDate: "",
-      reason: "",
-      imei: sim.current_imei || ""
-    });
+
+    if (action === "activate") {
+      setActivationDate(getTodayDate());
+    } else if (action === "install") {
+      setInstallationDate(getTodayDate());
+      setSelectedImei("");
+      setFreePulsa("0");
+      setBillingCycleReference("existing");
+      setCustomBillingDay(sim.billing_cycle_day || 1);
+    } else if (action === "grace_period") {
+      // ⭐ NEW: Auto-use existing billing cycle, no form needed
+      if (sim.billing_cycle_day) {
+        handleGracePeriodAutoSubmit(sim);
+        return; // Don't open dialog
+      }
+      // Fallback: if no billing cycle, show error
+      alert("Billing cycle belum diset! Harap install SIM card terlebih dahulu.");
+      return;
+    } else if (action === "reactivate") {
+      setReactivationDate(getTodayDate());
+    } else if (action === "deactivate") {
+      setDeactivationDate(getTodayDate());
+    }
+  };
+
+  // ⭐ NEW: Auto-submit Grace Period without form
+  const handleGracePeriodAutoSubmit = async (sim: SimCard) => {
+    try {
+      await simService.updateSimCard(sim.id, {
+        status: "GRACE_PERIOD",
+        grace_period_start_date: getTodayDate(), // FIXED property name
+        // Use existing billing_cycle_day, no change
+      });
+      loadSimCards();
+    } catch (error: any) {
+      alert(error.message || "Error moving to Grace Period");
+    }
   };
 
   const closeActionDialog = () => {
@@ -248,85 +281,68 @@ export default function SimCardsPage() {
   };
 
   const handleActionSubmit = async () => {
-    if (!actionDialog.sim) return;
-
     try {
-      const simId = actionDialog.sim.id;
+      if (!actionDialog.sim) return;
 
-      switch (actionDialog.type) {
-        case "activate":
-          await simService.activateSimCard(simId, actionFormData.date);
-          break;
+      if (actionDialog.type === "activate") {
+        await simService.updateSimCard(actionDialog.sim.id, {
+          status: "ACTIVATED",
+          activation_date: activationDate,
+        });
+      } else if (actionDialog.type === "install") {
+        // ⭐ Validate billing cycle is set
+        let finalBillingDay: number;
+        let billingSource: "provider" | "installation" | "custom";
 
-        case "install":
-          if (!imei.trim()) {
-            alert("IMEI device wajib diisi untuk instalasi!");
+        if (billingCycleReference === "existing") {
+          if (!actionDialog.sim.billing_cycle_day) {
+            alert("Billing cycle belum diset! Pilih Installation Date atau Custom.");
             return;
           }
-
-          // Determine billing cycle day based on selected option
-          let billingCycleDay: number | undefined = undefined;
-          let useInstallationAsBilling = false;
-          
-          if (billingCycleOption === "installation") {
-            useInstallationAsBilling = true;
-          } else if (billingCycleOption === "custom") {
-            billingCycleDay = customBillingDay;
-          }
-          
-          await simService.installSimCard(
-            simId, 
-            installationDate, 
-            imei.trim(), 
-            freePulsaMonths,
-            useInstallationAsBilling,
-            billingCycleDay
-          );
-          break;
-
-        case "grace_period":
-          if (!actionFormData.dueDate) {
-            alert("Batas Bayar Langganan Pulsa wajib diisi!");
+          finalBillingDay = actionDialog.sim.billing_cycle_day;
+          billingSource = "provider";
+        } else if (billingCycleReference === "installation") {
+          const instDate = new Date(installationDate);
+          finalBillingDay = instDate.getDate();
+          billingSource = "installation";
+        } else {
+          // custom
+          if (!customBillingDay || customBillingDay < 1 || customBillingDay > 31) {
+            alert("Custom billing day harus antara 1-31!");
             return;
           }
-          
-          // VALIDATION: Grace period date must be after activation date
-          if (actionDialog.sim.activation_date) {
-            const activationDate = new Date(actionDialog.sim.activation_date);
-            const gracePeriodDate = new Date(actionFormData.date);
-            
-            if (gracePeriodDate < activationDate) {
-              alert("Tanggal Grace Period tidak boleh sebelum tanggal aktivasi!");
-              return;
-            }
-          }
-          
-          await simService.enterGracePeriod(
-            simId,
-            actionFormData.date,
-            actionFormData.dueDate
-          );
-          break;
+          finalBillingDay = customBillingDay;
+          billingSource = "custom";
+        }
 
-        case "reactivate":
-          await simService.activateSimCard(simId, actionFormData.date);
-          break;
+        if (!selectedImei.trim()) {
+          alert("IMEI device wajib diisi!");
+          return;
+        }
 
-        case "deactivate":
-          if (!actionFormData.reason) {
-            alert("Alasan deaktivasi wajib diisi!");
-            return;
-          }
-          await simService.deactivateSimCard(
-            simId,
-            actionFormData.date,
-            actionFormData.reason
-          );
-          break;
+        await simService.updateSimCard(actionDialog.sim.id, {
+          status: "INSTALLED",
+          installation_date: installationDate,
+          current_imei: selectedImei,
+          billing_cycle_day: finalBillingDay,
+          billing_cycle_source: billingSource, // ⭐ NEW
+          free_pulsa: parseFloat(freePulsa) || 0,
+        });
+      } else if (actionDialog.type === "reactivate") {
+        await simService.updateSimCard(actionDialog.sim.id, {
+          status: "ACTIVATED",
+          activation_date: reactivationDate,
+        });
+      } else if (actionDialog.type === "deactivate") {
+        await simService.updateSimCard(actionDialog.sim.id, {
+          status: "DEACTIVATED",
+          deactivation_date: deactivationDate,
+          current_imei: null,
+        });
       }
 
-      await loadSimCards();
       closeActionDialog();
+      loadSimCards();
     } catch (error: any) {
       alert(error.message || "Error processing action");
     }
@@ -783,260 +799,229 @@ export default function SimCardsPage() {
 
         {/* Action Dialog (Activate / Install / Grace Period / Reactivate / Deactivate) */}
         <Dialog open={actionDialog.isOpen} onOpenChange={closeActionDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
             <DialogHeader>
-              <DialogTitle>{getActionDialogTitle()}</DialogTitle>
-              <DialogDescription>
-                {getActionDialogDescription()}
-              </DialogDescription>
+              <DialogTitle>
+                {actionDialog.type === "activate" && "Activate SIM Card"}
+                {actionDialog.type === "install" && "Install SIM Card"}
+                {actionDialog.type === "billing" && "Move to Billing Status"}
+                {actionDialog.type === "grace_period" && "Move to Grace Period"}
+                {actionDialog.type === "deactivate" && "Deactivate SIM Card"}
+              </DialogTitle>
             </DialogHeader>
 
-            {actionDialog.sim && (
-              <div className="space-y-4 py-4">
-                <div className="p-3 bg-muted rounded-lg">
-                  <div className="text-sm font-medium">No SIM: {actionDialog.sim.phone_number}</div>
-                  {actionDialog.sim.iccid && (
-                    <div className="text-xs text-muted-foreground">ICCID: {actionDialog.sim.iccid}</div>
-                  )}
-                  <div className="text-xs text-muted-foreground">
-                    Current Status: <Badge className={`${STATUS_COLORS[actionDialog.sim.status]} text-white`}>
-                      {actionDialog.sim.status}
-                    </Badge>
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+              {actionDialog.type === "activate" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="activation-date">Tanggal Aktivasi</Label>
+                    <Input
+                      id="activation-date"
+                      type="date"
+                      value={activationDate}
+                      onChange={(e) => setActivationDate(e.target.value)}
+                    />
                   </div>
                 </div>
+              )}
 
-                {actionDialog.type === "activate" && (
+              {actionDialog.type === "install" && (
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="activate_date">Tanggal Aktivasi</Label>
+                    <Label htmlFor="installation-date">Tanggal Instalasi</Label>
                     <Input
-                      id="activate_date"
+                      id="installation-date"
                       type="date"
-                      value={actionFormData.date}
-                      onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                      value={installationDate}
+                      onChange={(e) => setInstallationDate(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Status akan berubah dari WAREHOUSE → ACTIVATED
-                    </p>
                   </div>
-                )}
 
-                {actionDialog.type === "install" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="install-date">Tanggal Instalasi</Label>
-                      <Input
-                        id="install-date"
-                        type="date"
-                        value={installationDate}
-                        onChange={(e) => setInstallationDate(e.target.value)}
-                        max={getTodayDate()}
-                      />
-                    </div>
-
-                    <div className="space-y-3">
-                      <Label>Billing Cycle Reference</Label>
-                      <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
-                        {/* Option 1: Existing Billing Cycle */}
-                        <div className="flex items-start space-x-3">
-                          <input
-                            type="radio"
-                            id="billing-existing"
-                            name="billing-cycle"
-                            value="existing"
-                            checked={billingCycleOption === "existing"}
-                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
-                            className="mt-1 h-4 w-4 cursor-pointer"
-                          />
-                          <label htmlFor="billing-existing" className="flex-1 cursor-pointer">
-                            <div className="font-medium">Use Existing Billing Cycle Day</div>
-                            <div className="text-sm text-muted-foreground">
-                              Gunakan tanggal billing cycle yang sudah ada di sistem
-                            </div>
-                          </label>
-                        </div>
-
-                        {/* Option 2: Installation Date */}
-                        <div className="flex items-start space-x-3">
-                          <input
-                            type="radio"
-                            id="billing-installation"
-                            name="billing-cycle"
-                            value="installation"
-                            checked={billingCycleOption === "installation"}
-                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
-                            className="mt-1 h-4 w-4 cursor-pointer"
-                          />
-                          <label htmlFor="billing-installation" className="flex-1 cursor-pointer">
-                            <div className="font-medium">Use Installation Date as Billing Day</div>
-                            <div className="text-sm text-muted-foreground">
-                              Tanggal instalasi akan menjadi billing cycle day (Day {new Date(installationDate).getDate()})
-                            </div>
-                          </label>
-                        </div>
-
-                        {/* Option 3: Custom Billing Day */}
-                        <div className="flex items-start space-x-3">
-                          <input
-                            type="radio"
-                            id="billing-custom"
-                            name="billing-cycle"
-                            value="custom"
-                            checked={billingCycleOption === "custom"}
-                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
-                            className="mt-1 h-4 w-4 cursor-pointer"
-                          />
-                          <label htmlFor="billing-custom" className="flex-1 cursor-pointer">
-                            <div className="font-medium">Set Custom Billing Day</div>
-                            <div className="text-sm text-muted-foreground">
-                              Tentukan sendiri tanggal billing cycle (1-31)
-                            </div>
-                          </label>
-                        </div>
-
-                        {/* Conditional Input for Custom Day */}
-                        {billingCycleOption === "custom" && (
-                          <div className="ml-7 mt-2 space-y-2 border-l-2 border-primary pl-4">
-                            <Label htmlFor="custom-billing-day" className="text-sm">
-                              Billing Day (1-31)
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">
+                      Billing Cycle Reference *
+                      <span className="text-xs font-normal text-muted-foreground ml-2">
+                        (Wajib diisi)
+                      </span>
+                    </Label>
+                    
+                    <RadioGroup
+                      value={billingCycleReference}
+                      onValueChange={(value) => setBillingCycleReference(value as "existing" | "installation" | "custom")}
+                    >
+                      <div className="space-y-3">
+                        {/* Existing Provider Billing */}
+                        <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="existing" id="existing" className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor="existing" className="font-medium cursor-pointer">
+                              Gunakan Billing Cycle Provider
                             </Label>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                id="custom-billing-day"
-                                type="number"
-                                min="1"
-                                max="31"
-                                value={customBillingDay}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  if (val >= 1 && val <= 31) {
-                                    setCustomBillingDay(val);
-                                  }
-                                }}
-                                className="w-24"
-                              />
-                              <span className="text-sm text-muted-foreground">
-                                Every month on day {customBillingDay}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              💡 Tip: Pilih tanggal 1-28 untuk konsistensi di semua bulan
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {actionDialog.sim?.billing_cycle_day ? (
+                                <>
+                                  Saat ini: <span className="font-semibold">Day {actionDialog.sim.billing_cycle_day}</span> setiap bulan
+                                  <span className="text-xs block mt-1">(dari sistem provider)</span>
+                                </>
+                              ) : (
+                                <span className="text-amber-600">⚠️ Belum ada billing cycle default. Pilih opsi lain.</span>
+                              )}
                             </p>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Installation Date Billing */}
+                        <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="installation" id="installation" className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor="installation" className="font-medium cursor-pointer">
+                              Gunakan Tanggal Instalasi
+                            </Label>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Billing cycle = hari instalasi
+                              {installationDate && (
+                                <>
+                                  <br />
+                                  <span className="font-semibold">
+                                    Day {new Date(installationDate).getDate()}
+                                  </span> setiap bulan
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Custom Billing Day */}
+                        <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                          <RadioGroupItem value="custom" id="custom" className="mt-1" />
+                          <div className="flex-1 space-y-2">
+                            <Label htmlFor="custom" className="font-medium cursor-pointer">
+                              Custom Billing Day
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Tentukan hari billing sendiri (1-31)
+                            </p>
+                            {billingCycleReference === "custom" && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Label htmlFor="custom-day" className="text-sm whitespace-nowrap">
+                                  Day:
+                                </Label>
+                                <Input
+                                  id="custom-day"
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  placeholder="1-31"
+                                  value={customBillingDay}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if ((val >= 1 && val <= 31) || e.target.value === "") {
+                                      setCustomBillingDay(val || 1);
+                                    }
+                                  }}
+                                  className="w-20"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  setiap bulan
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="imei">IMEI Device</Label>
-                      <Input
-                        id="imei"
-                        type="text"
-                        value={imei}
-                        onChange={(e) => setImei(e.target.value)}
-                        placeholder="Enter device IMEI"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="free-pulsa">Free Pulsa (months)</Label>
-                      <Input
-                        id="free-pulsa"
-                        type="number"
-                        min="0"
-                        value={freePulsaMonths}
-                        onChange={(e) => setFreePulsaMonths(parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Jumlah bulan yang mendapat free pulsa
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {actionDialog.type === "grace_period" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="grace_date">Tanggal</Label>
-                      <Input
-                        id="grace_date"
-                        type="date"
-                        value={actionFormData.date}
-                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="due_date">Batas Bayar Langganan Pulsa *</Label>
-                      <Input
-                        id="due_date"
-                        type="date"
-                        value={actionFormData.dueDate}
-                        onChange={(e) => setActionFormData({...actionFormData, dueDate: e.target.value})}
-                        required
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Tanggal jatuh tempo pembayaran sebelum kartu dinonaktifkan. Status akan berubah dari INSTALLED → GRACE_PERIOD
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {actionDialog.type === "reactivate" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="reactivate_date">Tanggal Reaktivasi</Label>
-                    <Input
-                      id="reactivate_date"
-                      type="date"
-                      value={actionFormData.date}
-                      onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Status akan berubah kembali ke INSTALLED setelah pembayaran diterima.
-                    </p>
+                    </RadioGroup>
                   </div>
-                )}
 
-                {actionDialog.type === "deactivate" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="deactivate_date">Tanggal Deaktivasi</Label>
-                      <Input
-                        id="deactivate_date"
-                        type="date"
-                        value={actionFormData.date}
-                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="device-imei">IMEI Device *</Label>
+                    <Input
+                      id="device-imei"
+                      placeholder="Masukkan IMEI device"
+                      value={selectedImei}
+                      onChange={(e) => setSelectedImei(e.target.value)}
+                    />
+                  </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="deactivate_reason">Alasan Deaktivasi *</Label>
-                      <Input
-                        id="deactivate_reason"
-                        placeholder="Contoh: Tidak ada pembayaran setelah grace period"
-                        value={actionFormData.reason}
-                        onChange={(e) => setActionFormData({...actionFormData, reason: e.target.value})}
-                        required
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Status akan berubah ke DEACTIVATED dan layanan dihentikan.
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+                  <div className="space-y-2">
+                    <Label htmlFor="free-pulsa">Free Pulsa (Rp)</Label>
+                    <Input
+                      id="free-pulsa"
+                      type="number"
+                      placeholder="0"
+                      value={freePulsa}
+                      onChange={(e) => setFreePulsa(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
 
-            <DialogFooter>
+              {actionDialog.type === "billing" && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Konfirmasi untuk memindahkan SIM card ke status Billing.
+                  </p>
+                </div>
+              )}
+
+              {actionDialog.type === "grace_period" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="grace-period-date">Grace Period Start Date</Label>
+                    <Input
+                      id="grace-period-date"
+                      type="date"
+                      value={gracePeriodDate}
+                      onChange={(e) => setGracePeriodDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="grace-period-due">Batas Bayar Langganan Pulsa</Label>
+                    <Input
+                      id="grace-period-due"
+                      type="date"
+                      value={actionFormData.dueDate}
+                      onChange={(e) => setActionFormData({...actionFormData, dueDate: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {actionDialog.type === "deactivate" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="deactivation-date">Tanggal Deaktivasi</Label>
+                    <Input
+                      id="deactivation-date"
+                      type="date"
+                      value={deactivationDate}
+                      onChange={(e) => setDeactivationDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="deactivation-reason">Alasan Deaktivasi</Label>
+                    <Input
+                      id="deactivation-reason"
+                      placeholder="Contoh: Kontrak habis, Device rusak"
+                      value={actionFormData.reason}
+                      onChange={(e) => setActionFormData({...actionFormData, reason: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sticky Footer with Buttons */}
+            <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t mt-4">
               <Button variant="outline" onClick={closeActionDialog}>
-                Batal
+                Cancel
               </Button>
               <Button onClick={handleActionSubmit}>
-                {actionDialog.type === "activate" && "Aktivasi"}
+                {actionDialog.type === "activate" && "Activate"}
                 {actionDialog.type === "install" && "Install"}
-                {actionDialog.type === "grace_period" && "Simpan Grace Period"}
-                {actionDialog.type === "reactivate" && "Reaktivasi"}
-                {actionDialog.type === "deactivate" && "Non-aktifkan"}
+                {actionDialog.type === "billing" && "Move to Billing"}
+                {actionDialog.type === "grace_period" && "Set Grace Period"}
+                {actionDialog.type === "deactivate" && "Deactivate"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1214,7 +1199,7 @@ export default function SimCardsPage() {
                                   variant="outline"
                                   className="text-blue-600 border-blue-600 hover:bg-blue-50"
                                   onClick={() =>
-                                    openActionDialog("activate", sim)
+                                    openActionDialog(sim, "activate")
                                   }
                                 >
                                   <PlayCircle className="h-4 w-4 mr-1" />
@@ -1227,7 +1212,7 @@ export default function SimCardsPage() {
                                   variant="outline"
                                   className="text-green-600 border-green-600 hover:bg-green-50"
                                   onClick={() =>
-                                    openActionDialog("install", sim)
+                                    openActionDialog(sim, "install")
                                   }
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -1241,7 +1226,7 @@ export default function SimCardsPage() {
                                     variant="outline"
                                     className="text-orange-600 border-orange-600 hover:bg-orange-50"
                                     onClick={() =>
-                                      openActionDialog("grace_period", sim)
+                                      openActionDialog(sim, "grace_period")
                                     }
                                   >
                                     <AlertCircle className="h-4 w-4 mr-1" />
@@ -1252,7 +1237,7 @@ export default function SimCardsPage() {
                                     variant="outline"
                                     className="text-red-600 border-red-600 hover:bg-red-50"
                                     onClick={() =>
-                                      openActionDialog("deactivate", sim)
+                                      openActionDialog(sim, "deactivate")
                                     }
                                   >
                                     <XCircle className="h-4 w-4 mr-1" />
@@ -1267,7 +1252,7 @@ export default function SimCardsPage() {
                                     variant="outline"
                                     className="text-green-600 border-green-600 hover:bg-green-50"
                                     onClick={() =>
-                                      openActionDialog("reactivate", sim)
+                                      openActionDialog(sim, "reactivate")
                                     }
                                   >
                                     <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -1278,7 +1263,7 @@ export default function SimCardsPage() {
                                     variant="outline"
                                     className="text-red-600 border-red-600 hover:bg-red-50"
                                     onClick={() =>
-                                      openActionDialog("deactivate", sim)
+                                      openActionDialog(sim, "deactivate")
                                     }
                                   >
                                     <XCircle className="h-4 w-4 mr-1" />
@@ -1292,7 +1277,7 @@ export default function SimCardsPage() {
                                   variant="outline"
                                   className="text-green-600 border-green-600 hover:bg-green-50"
                                   onClick={() =>
-                                    openActionDialog("reactivate", sim)
+                                    openActionDialog(sim, "reactivate")
                                   }
                                 >
                                   <CheckCircle2 className="h-4 w-4 mr-1" />

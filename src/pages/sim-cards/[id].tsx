@@ -9,8 +9,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, CreditCard, DollarSign, TrendingUp, Info, Clock, Package, CheckCircle, Smartphone, AlertCircle, XCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, Calendar, CreditCard, DollarSign, TrendingUp, Info, Clock, Package, CheckCircle, Smartphone, AlertCircle, XCircle, RotateCcw, User, MapPin, CheckCircle2, XCircle, AlertCircle, Activity } from "lucide-react";
 import Link from "next/link";
+
+// ⭐ Helper function to determine billing cycle source
+function getBillingCycleSource(simCard: SimCard): string {
+  if (!simCard.billing_cycle_day) return "";
+  
+  if (simCard.billing_cycle_source === "provider") {
+    return "(From Provider)";
+  } else if (simCard.billing_cycle_source === "installation") {
+    return "(Installation Date)";
+  } else if (simCard.billing_cycle_source === "custom") {
+    return "(Custom)";
+  }
+  
+  // Fallback: try to infer from installation date
+  if (simCard.installation_date) {
+    const installDay = new Date(simCard.installation_date).getDate();
+    if (installDay === simCard.billing_cycle_day) {
+      return "(Installation Date)";
+    }
+  }
+  
+  return "(Custom/Provider)";
+}
 
 export default function SimCardDetailPage() {
   const router = useRouter();
@@ -292,9 +315,23 @@ export default function SimCardDetailPage() {
                   <p className="text-sm text-muted-foreground">IMEI Terpasang</p>
                   <p className="font-medium">{simCard.current_imei || "-"}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Billing Cycle Day</p>
-                  <p className="font-medium">{simCard.billing_cycle_day || "-"}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Billing Cycle Day</p>
+                    <p className="text-lg font-semibold mt-1">
+                      {simCard.billing_cycle_day ? (
+                        <span className="flex items-center gap-2">
+                          <Calendar className="h-5 w-5 text-muted-foreground" />
+                          Day {simCard.billing_cycle_day}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {getBillingCycleSource(simCard)}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
