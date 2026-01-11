@@ -614,15 +614,18 @@ export default function SimCardsPage() {
         gracePeriodStart = new Date(currentYear, currentMonth - 1, billingDay);
       }
 
+      // Format date as YYYY-MM-DD string for consistency
+      const gracePeriodStartStr = gracePeriodStart.toISOString().split('T')[0];
+
       await simService.updateSimCard(actionDialog.sim.id, {
         status: "GRACE_PERIOD",
-        grace_period_start_date: gracePeriodStart.toISOString().split('T')[0],
+        grace_period_start_date: gracePeriodStartStr,
         updated_at: new Date().toISOString()
       });
 
       toast({
         title: "Moved to Grace Period",
-        description: `SIM Card ${actionDialog.sim.phone_number} sekarang dalam Grace Period. Grace Period Start (Batas Bayar): ${formatDate(gracePeriodStart)}. Admin harus deactivate secara manual jika customer tidak bayar dalam 30 hari.`,
+        description: `SIM Card ${actionDialog.sim.phone_number} sekarang dalam Grace Period. Grace Period Start (Batas Bayar): ${formatDate(gracePeriodStartStr)}. Admin harus deactivate secara manual jika customer tidak bayar dalam 30 hari.`,
         variant: "default"
       });
 
