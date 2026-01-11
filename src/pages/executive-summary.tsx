@@ -722,10 +722,16 @@ export default function ExecutiveSummary() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Periode:</span>
               <span className="font-medium">
-                {new Date(selectedMonth + "-01").toLocaleDateString("id-ID", { 
-                  year: "numeric", 
-                  month: "long" 
-                })}
+                {(() => {
+                  const monthDate = new Date(selectedMonth + "-01");
+                  const year = monthDate.getFullYear();
+                  const month = monthDate.getMonth();
+                  const displayDate = new Date(year, month, 1);
+                  return displayDate.toLocaleDateString("id-ID", { 
+                    year: "numeric", 
+                    month: "long" 
+                  });
+                })()}
               </span>
             </div>
             <div className="flex justify-between">
