@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { AlertTriangle, Download, TrendingDown, DollarSign, Calendar, Ghost } from "lucide-react";
-import { simService, calculateDailyBurden, calculateGracePeriodCost, getGracePeriodStatus, calculateFreePulsaCost } from "@/services/simService";
+import { simService, calculateDailyBurden, calculateFreePulsaCost } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
 
 interface OverlapSimCard {
@@ -49,8 +50,17 @@ interface FreePulsaSimCard {
 export default function ExecutiveSummary() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState<string>(
-    new Date().toISOString().slice(0, 7)
+  
+  // Default to current month (first day and last day)
+  const now = new Date();
+  const defaultStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const defaultEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  const [startDate, setStartDate] = useState<string>(
+    defaultStartDate.toISOString().split("T")[0]
+  );
+  const [endDate, setEndDate] = useState<string>(
+    defaultEndDate.toISOString().split("T")[0]
   );
 
   useEffect(() => {
@@ -67,41 +77,36 @@ export default function ExecutiveSummary() {
     }
   };
 
+  // Calculate date range for filtering
+  const dateRange = useMemo(() => {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    return { start, end };
+  }, [startDate, endDate]);
+
   // Calculate Overlap Cards (from daily burden)
   const overlapCards = useMemo(() => {
-    // Use same date logic as Informasi Laporan card
-    const monthDate = new Date(selectedMonth + "-01");
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
-    
-    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
+    const { start: rangeStart, end: rangeEnd } = dateRange;
     const cards: OverlapSimCard[] = [];
 
     simCards.forEach(sim => {
       const burden = calculateDailyBurden(sim);
       
-      // CRITICAL: Only include if overlap cost actually occurred in selected month
-      // Check if burden period overlaps with selected month
+      // Only include if overlap cost exists
       if (burden.overlap_1_cost > 0 || burden.overlap_2_cost > 0) {
-        // Check if SIM was active during selected month
         const activationDate = sim.activation_date ? new Date(sim.activation_date) : null;
         const deactivationDate = sim.deactivation_date ? new Date(sim.deactivation_date) : null;
         
-        // SIM must be activated before or during selected month
-        // AND either still active OR deactivated after selected month starts
-        const wasActiveInMonth = activationDate && 
-          activationDate.getTime() <= monthEnd.getTime() && 
-          (!deactivationDate || deactivationDate.getTime() >= monthStart.getTime());
+        // Check if SIM was active during selected date range
+        const wasActiveInRange = activationDate && 
+          activationDate.getTime() <= rangeEnd.getTime() && 
+          (!deactivationDate || deactivationDate.getTime() >= rangeStart.getTime());
 
-        if (wasActiveInMonth) {
-          // Now check if the overlap period itself overlaps with selected month
-          // Overlap 1: installation_date to deactivation_date/now
-          // Overlap 2: Could be another period
-          
-          // For simplicity, we'll include if SIM was active and has overlap cost
-          // The burden calculation already handles the overlap period
+        if (wasActiveInRange) {
           cards.push({
             phoneNumber: sim.phone_number,
             iccid: sim.iccid || "N/A",
@@ -119,19 +124,12 @@ export default function ExecutiveSummary() {
     });
 
     return cards.sort((a, b) => b.totalOverlapCost - a.totalOverlapCost);
-  }, [simCards, selectedMonth]);
+  }, [simCards, dateRange]);
 
   // Calculate Potential Loss Cards (Grace Period + Ghost SIM)
   const potentialLossCards = useMemo(() => {
-    // Use same date logic as Informasi Laporan card
-    const monthDate = new Date(selectedMonth + "-01");
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
-    
-    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const { start: rangeStart, end: rangeEnd } = dateRange;
     const now = new Date();
-
     const cards: PotentialLossSimCard[] = [];
 
     simCards.forEach(sim => {
@@ -143,12 +141,12 @@ export default function ExecutiveSummary() {
       if (sim.status === "GRACE_PERIOD" && sim.grace_period_start_date) {
         const graceStartDate = new Date(sim.grace_period_start_date);
         
-        // Calculate overlap between grace period and selected month
-        const overlapStart = graceStartDate.getTime() > monthStart.getTime() ? graceStartDate : monthStart;
-        const overlapEnd = now.getTime() < monthEnd.getTime() ? now : monthEnd;
+        // Calculate overlap between grace period and selected date range
+        const overlapStart = graceStartDate.getTime() > rangeStart.getTime() ? graceStartDate : rangeStart;
+        const overlapEnd = now.getTime() < rangeEnd.getTime() ? now : rangeEnd;
         
-        // Only include if there's overlap with selected month
-        if (overlapStart.getTime() <= overlapEnd.getTime() && graceStartDate.getTime() <= monthEnd.getTime()) {
+        // Only include if there's overlap with selected date range
+        if (overlapStart.getTime() <= overlapEnd.getTime() && graceStartDate.getTime() <= rangeEnd.getTime()) {
           days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
@@ -160,12 +158,12 @@ export default function ExecutiveSummary() {
       if (sim.status === "ACTIVATED" && !sim.installation_date && sim.activation_date) {
         const activationDate = new Date(sim.activation_date);
         
-        // Calculate overlap between ghost period and selected month
-        const overlapStart = activationDate.getTime() > monthStart.getTime() ? activationDate : monthStart;
-        const overlapEnd = now.getTime() < monthEnd.getTime() ? now : monthEnd;
+        // Calculate overlap between ghost period and selected date range
+        const overlapStart = activationDate.getTime() > rangeStart.getTime() ? activationDate : rangeStart;
+        const overlapEnd = now.getTime() < rangeEnd.getTime() ? now : rangeEnd;
         
-        // Only include if there's overlap with selected month
-        if (overlapStart.getTime() <= overlapEnd.getTime() && activationDate.getTime() <= monthEnd.getTime()) {
+        // Only include if there's overlap with selected date range
+        if (overlapStart.getTime() <= overlapEnd.getTime() && activationDate.getTime() <= rangeEnd.getTime()) {
           days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
@@ -189,18 +187,11 @@ export default function ExecutiveSummary() {
     });
 
     return cards.sort((a, b) => b.totalCost - a.totalCost);
-  }, [simCards, selectedMonth]);
+  }, [simCards, dateRange]);
 
-  // Calculate Free Pulsa Cards - using function from simService
+  // Calculate Free Pulsa Cards
   const freePulsaCosts = useMemo(() => {
-    // Use same date logic as Informasi Laporan card
-    const monthDate = new Date(selectedMonth + "-01");
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth(); // 0-indexed: 0=Jan, 1=Feb, etc.
-    
-    const monthStart = new Date(year, month, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999);
-
+    const { start: rangeStart, end: rangeEnd } = dateRange;
     const costs: Array<{
       phoneNumber: string;
       iccid: string;
@@ -216,18 +207,18 @@ export default function ExecutiveSummary() {
       if (sim.free_pulsa_months && sim.installation_date && sim.monthly_cost) {
         const calc = calculateFreePulsaCost(sim);
         
-        // Check if free pulsa period overlaps with selected month
+        // Check if free pulsa period overlaps with selected date range
         const installDate = new Date(sim.installation_date);
         const expiryDate = calc.expiryDate ? new Date(calc.expiryDate) : null;
         
         // Only include if:
-        // 1. Installation date is before or within selected month end
-        // 2. Expiry date is after or within selected month start (still active in this month)
+        // 1. Installation date is before or within date range end
+        // 2. Expiry date is after or within date range start (still active in this range)
         // 3. Has cost incurred (months have elapsed)
-        const isActiveInMonth = installDate <= monthEnd && 
-          (!expiryDate || expiryDate >= monthStart);
+        const isActiveInRange = installDate <= rangeEnd && 
+          (!expiryDate || expiryDate >= rangeStart);
         
-        if (isActiveInMonth && calc.costIncurred > 0) {
+        if (isActiveInRange && calc.costIncurred > 0) {
           costs.push({
             phoneNumber: sim.phone_number,
             iccid: sim.iccid || "N/A",
@@ -243,7 +234,7 @@ export default function ExecutiveSummary() {
     });
 
     return costs.sort((a, b) => b.costIncurred - a.costIncurred);
-  }, [simCards, selectedMonth]);
+  }, [simCards, dateRange]);
 
   // Calculate Summary Metrics
   const metrics = useMemo(() => {
@@ -274,18 +265,19 @@ export default function ExecutiveSummary() {
     }).format(amount);
   };
 
-  const generateMonthOptions = () => {
-    const options = [];
-    const currentDate = new Date();
+  const formatDateRange = () => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
-      const value = date.toISOString().slice(0, 7);
-      const label = date.toLocaleDateString("id-ID", { year: "numeric", month: "long" });
-      options.push({ value, label });
-    }
-    
-    return options;
+    return `${start.toLocaleDateString("id-ID", { 
+      day: "numeric",
+      month: "long", 
+      year: "numeric" 
+    })} - ${end.toLocaleDateString("id-ID", { 
+      day: "numeric",
+      month: "long", 
+      year: "numeric" 
+    })}`;
   };
 
   const exportToExcel = (data: any[], filename: string, headers: string[]) => {
@@ -302,7 +294,7 @@ export default function ExecutiveSummary() {
 
     csvRows.push("");
     csvRows.push(`Export Date,${new Date().toISOString()}`);
-    csvRows.push(`Period,${selectedMonth}`);
+    csvRows.push(`Period,${formatDateRange()}`);
 
     const csvContent = csvRows.join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -310,7 +302,7 @@ export default function ExecutiveSummary() {
     const url = URL.createObjectURL(blob);
     
     link.setAttribute("href", url);
-    link.setAttribute("download", `${filename}-${selectedMonth}.csv`);
+    link.setAttribute("download", `${filename}-${startDate}-${endDate}.csv`);
     link.style.visibility = "hidden";
     document.body.appendChild(link);
     link.click();
@@ -377,6 +369,34 @@ export default function ExecutiveSummary() {
     );
   };
 
+  const setQuickPeriod = (period: "this-month" | "last-month" | "last-3-months" | "last-6-months") => {
+    const now = new Date();
+    let start: Date;
+    let end: Date;
+
+    switch (period) {
+      case "this-month":
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case "last-month":
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case "last-3-months":
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case "last-6-months":
+        start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+    }
+
+    setStartDate(start.toISOString().split("T")[0]);
+    setEndDate(end.toISOString().split("T")[0]);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -398,29 +418,83 @@ export default function ExecutiveSummary() {
       />
       
       <div className="space-y-6">
-        {/* Header with Month Filter */}
-        <div className="flex items-center justify-between">
+        {/* Header with Custom Date Filter */}
+        <div className="flex flex-col gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Executive Summary</h1>
             <p className="text-muted-foreground mt-2">
               Analisis Biaya & Potensi Kerugian SIM Card
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Pilih Bulan" />
-              </SelectTrigger>
-              <SelectContent>
-                {generateMonthOptions().map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {/* Custom Date Range Filter */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Filter Periode
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Date Range Inputs */}
+                <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="start-date">Tanggal Mulai</Label>
+                    <Input
+                      id="start-date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      max={endDate}
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="end-date">Tanggal Akhir</Label>
+                    <Input
+                      id="end-date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      min={startDate}
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Period Buttons */}
+                <div className="flex flex-wrap gap-2 items-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setQuickPeriod("this-month")}
+                  >
+                    Bulan Ini
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setQuickPeriod("last-month")}
+                  >
+                    Bulan Lalu
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setQuickPeriod("last-3-months")}
+                  >
+                    3 Bulan Terakhir
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setQuickPeriod("last-6-months")}
+                  >
+                    6 Bulan Terakhir
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* KPI Cards - 3 Main Metrics */}
@@ -504,7 +578,7 @@ export default function ExecutiveSummary() {
             {overlapCards.length === 0 ? (
               <div className="text-center py-12">
                 <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Tidak ada biaya overlap di bulan ini</p>
+                <p className="text-muted-foreground">Tidak ada biaya overlap di periode ini</p>
               </div>
             ) : (
               <div className="border rounded-lg">
@@ -580,7 +654,7 @@ export default function ExecutiveSummary() {
             {potentialLossCards.length === 0 ? (
               <div className="text-center py-12">
                 <Ghost className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">Tidak ada potensi kerugian di bulan ini</p>
+                <p className="text-muted-foreground">Tidak ada potensi kerugian di periode ini</p>
               </div>
             ) : (
               <div className="border rounded-lg">
@@ -721,18 +795,7 @@ export default function ExecutiveSummary() {
           <CardContent className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Periode:</span>
-              <span className="font-medium">
-                {(() => {
-                  const monthDate = new Date(selectedMonth + "-01");
-                  const year = monthDate.getFullYear();
-                  const month = monthDate.getMonth();
-                  const displayDate = new Date(year, month, 1);
-                  return displayDate.toLocaleDateString("id-ID", { 
-                    year: "numeric", 
-                    month: "long" 
-                  });
-                })()}
-              </span>
+              <span className="font-medium">{formatDateRange()}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tanggal Generate:</span>
