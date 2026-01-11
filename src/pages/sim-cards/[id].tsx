@@ -380,6 +380,120 @@ export default function SimCardDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Billing Cycle Information */}
+            {simCard.billing_cycle_day && (
+              <Card className="border-blue-200 dark:border-blue-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5 text-blue-600" />
+                    Informasi Billing Cycle
+                  </CardTitle>
+                  <CardDescription>
+                    Siklus pembayaran dan periode billing SIM card
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">Tanggal Billing Bulanan</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-3xl font-bold text-blue-600">
+                          {simCard.billing_cycle_day}
+                        </p>
+                        <p className="text-sm text-muted-foreground">setiap bulan</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {getBillingCycleSource(simCard)}
+                      </p>
+                    </div>
+
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">Billing Berikutnya</p>
+                      <div className="space-y-1">
+                        <p className="text-lg font-bold">
+                          {(() => {
+                            const today = new Date();
+                            const currentMonth = today.getMonth();
+                            const currentYear = today.getFullYear();
+                            const billingDay = simCard.billing_cycle_day;
+                            let nextBillingDate = new Date(currentYear, currentMonth, billingDay);
+                            if (nextBillingDate <= today) {
+                              nextBillingDate = new Date(currentYear, currentMonth + 1, billingDay);
+                            }
+                            return formatDate(nextBillingDate.toISOString());
+                          })()}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          <p className="text-xs text-muted-foreground">
+                            {(() => {
+                              const today = new Date();
+                              const currentMonth = today.getMonth();
+                              const currentYear = today.getFullYear();
+                              const billingDay = simCard.billing_cycle_day;
+                              let nextBillingDate = new Date(currentYear, currentMonth, billingDay);
+                              if (nextBillingDate <= today) {
+                                nextBillingDate = new Date(currentYear, currentMonth + 1, billingDay);
+                              }
+                              const daysUntil = Math.ceil((nextBillingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                              return `${daysUntil} hari lagi`;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <p className="text-sm font-semibold mb-3">Periode Billing Saat Ini</p>
+                    <div className="bg-muted/30 p-4 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Mulai</p>
+                          <p className="font-medium">
+                            {(() => {
+                              const today = new Date();
+                              const currentMonth = today.getMonth();
+                              const currentYear = today.getFullYear();
+                              const billingDay = simCard.billing_cycle_day;
+                              let periodStart = new Date(currentYear, currentMonth, billingDay);
+                              if (today.getDate() < billingDay) {
+                                periodStart = new Date(currentYear, currentMonth - 1, billingDay);
+                              }
+                              return formatDate(periodStart.toISOString());
+                            })()}
+                          </p>
+                        </div>
+
+                        <div className="text-center px-4">
+                          <div className="text-2xl text-muted-foreground">→</div>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground mb-1">Berakhir</p>
+                          <p className="font-medium">
+                            {(() => {
+                              const today = new Date();
+                              const currentMonth = today.getMonth();
+                              const currentYear = today.getFullYear();
+                              const billingDay = simCard.billing_cycle_day;
+                              let periodEnd = new Date(currentYear, currentMonth + 1, billingDay - 1);
+                              if (today.getDate() < billingDay) {
+                                periodEnd = new Date(currentYear, currentMonth, billingDay - 1);
+                              }
+                              return formatDate(periodEnd.toISOString());
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Daily Burden Calculation */}
             <Card className="border-primary/50">
               <CardHeader>
