@@ -126,8 +126,7 @@ export function Layout({ children }: LayoutProps) {
                       ))}
                     </div>
 
-                    {/* Theme Toggle - Mobile */}
-                    <div className="pt-4 border-t border-border">
+                    <div className="mt-6 pt-4 border-t border-border">
                       <ThemeSwitch />
                     </div>
                   </SheetContent>
@@ -141,7 +140,7 @@ export function Layout({ children }: LayoutProps) {
                 </Link>
               </div>
 
-              <div className="flex items-center gap-2 md:hidden">
+              <div className="flex items-center gap-2">
                 <ThemeSwitch />
               </div>
             </div>
