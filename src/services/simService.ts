@@ -213,6 +213,7 @@ const MOCK_SIMS: SimCard[] = [
     updated_at: new Date().toISOString(),
     grace_period_start_date: null,
     grace_period_due_date: null,
+    reactivation_date: null
   },
   {
     id: "2",
@@ -238,6 +239,7 @@ const MOCK_SIMS: SimCard[] = [
     updated_at: new Date().toISOString(),
     grace_period_start_date: null,
     grace_period_due_date: null,
+    reactivation_date: null
   },
   {
     id: "3",
@@ -263,6 +265,7 @@ const MOCK_SIMS: SimCard[] = [
     updated_at: new Date().toISOString(),
     grace_period_start_date: null,
     grace_period_due_date: null,
+    reactivation_date: null
   }
 ];
 

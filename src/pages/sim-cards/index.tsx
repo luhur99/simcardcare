@@ -62,7 +62,7 @@ const STATUS_ICONS: Record<SimStatus, React.ReactNode> = {
   DEACTIVATED: <XCircle className="h-4 w-4" />
 };
 
-type ActionType = "activate" | "install" | "grace_period" | "reactivate" | "deactivate" | "billing" | null;
+type ActionType = "activate" | "install" | "grace_period" | "reactivate" | null;
 
 export default function SimCardsPage() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
@@ -110,8 +110,7 @@ export default function SimCardsPage() {
   
   // Other Action States
   const [gracePeriodDate, setGracePeriodDate] = useState(getTodayDate());
-  const [deactivationDate, setDeactivationDate] = useState(getTodayDate());
-
+  
   // Form State for Add SIM
   const [formData, setFormData] = useState({
     phone_number: "",
@@ -215,7 +214,8 @@ export default function SimCardsPage() {
         free_pulsa_months: null,
         free_pulsa: 0,
         grace_period_start_date: null,
-        grace_period_due_date: null
+        grace_period_due_date: null,
+        reactivation_date: null
       };
 
       await simService.createSimCard(newSim);
@@ -325,8 +325,6 @@ export default function SimCardsPage() {
       }
     } else if (action === "reactivate") {
       setReactivationDate(getTodayDate());
-    } else if (action === "deactivate") {
-      setDeactivationDate(getTodayDate());
     }
   };
 
@@ -399,12 +397,6 @@ export default function SimCardsPage() {
           reactivation_date: reactivationDate,
           grace_period_start_date: null, // Clear grace period status
           is_reactivated: true
-        });
-      } else if (actionDialog.type === "deactivate") {
-        await simService.updateSimCard(actionDialog.sim.id, {
-          status: "DEACTIVATED",
-          deactivation_date: deactivationDate,
-          current_imei: null,
         });
       }
 
@@ -590,8 +582,6 @@ export default function SimCardsPage() {
         return "Masukkan Ke Periode Pengingat";
       case "reactivate":
         return "Reaktivasi Kartu SIM";
-      case "deactivate":
-        return "Non-aktifkan Kartu SIM";
       default:
         return "";
     }
@@ -607,8 +597,6 @@ export default function SimCardsPage() {
         return "Konfirmasi untuk memindahkan SIM ke status Grace Period.";
       case "reactivate":
         return "Konfirmasi reaktivasi kartu SIM setelah pembayaran diterima. Status akan kembali ke INSTALLED dengan data device sebelumnya.";
-      case "deactivate":
-        return "Masukkan alasan deaktivasi kartu SIM.";
       default:
         return "";
     }
@@ -861,7 +849,20 @@ export default function SimCardsPage() {
                           variant="ghost" 
                           size="icon"
                           className="text-red-600 hover:text-red-700"
-                          onClick={() => openActionDialog(sim, "deactivate")}
+                          onClick={async () => {
+                            if (confirm(`Yakin ingin non-aktifkan SIM ${sim.phone_number}?`)) {
+                              try {
+                                await simService.updateSimCard(sim.id, {
+                                  status: "DEACTIVATED",
+                                  deactivation_date: getTodayDate(),
+                                  current_imei: null,
+                                });
+                                loadSimCards();
+                              } catch (error: any) {
+                                alert(error.message || "Error deactivating SIM");
+                              }
+                            }
+                          }}
                           title="Deactivate"
                         >
                           <XCircle className="h-4 w-4" />
@@ -1116,29 +1117,6 @@ export default function SimCardsPage() {
                 </div>
               </div>
             )}
-
-            {actionDialog.type === "deactivate" && (
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="deactivation-date">Deactivation Date</Label>
-                  <Input
-                    id="deactivation-date"
-                    type="date"
-                    value={deactivationDate}
-                    onChange={(e) => setDeactivationDate(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="reason">Reason for Deactivation</Label>
-                  <Input
-                    id="reason"
-                    placeholder="e.g., Lost device, Cancelled plan"
-                    value={actionFormData.reason}
-                    onChange={(e) => setActionFormData({ ...actionFormData, reason: e.target.value })}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <DialogFooter>
@@ -1150,8 +1128,7 @@ export default function SimCardsPage() {
                 actionDialog.type === "activate" ? "Activate" :
                 actionDialog.type === "install" ? "Install" :
                 actionDialog.type === "grace_period" ? "Move to Grace Period" :
-                actionDialog.type === "reactivate" ? "Reactivate" :
-                actionDialog.type === "deactivate" && "Deactivate"}
+                "Reactivate"}
             </Button>
           </DialogFooter>
         </DialogContent>
