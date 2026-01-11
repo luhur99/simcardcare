@@ -44,6 +44,24 @@ import { useToast } from "@/hooks/use-toast";
 // Helper function
 const getTodayDate = () => new Date().toISOString().split("T")[0];
 
+// Phone number formatting and validation
+const formatPhoneNumber = (input: string): string => {
+  // Remove all non-numeric characters
+  let cleaned = input.replace(/\D/g, "");
+  
+  // If starts with 62, replace with 0
+  if (cleaned.startsWith("62")) {
+    cleaned = "0" + cleaned.substring(2);
+  }
+  
+  // If doesn't start with 0, add it
+  if (cleaned.length > 0 && !cleaned.startsWith("0")) {
+    cleaned = "0" + cleaned;
+  }
+  
+  return cleaned;
+};
+
 const STATUS_COLORS: Record<SimStatus, string> = {
   WAREHOUSE: "bg-gray-500",
   ACTIVATED: "bg-blue-500",
@@ -888,7 +906,10 @@ export default function SimCardsPage() {
               <Input
                 id="phone"
                 value={formData.phone_number}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value);
+                  setFormData({ ...formData, phone_number: formatted });
+                }}
                 className="col-span-3"
                 placeholder="081234567890"
               />
