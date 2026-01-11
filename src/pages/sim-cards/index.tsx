@@ -29,17 +29,24 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package, AlertTriangle, Bell, Info } from "lucide-react";
-import { useState, useEffect } from "react";
-import { simService, calculateGracePeriodCost, getGracePeriodStatus } from "@/services/simService";
+import { Plus, Search, Upload, Eye, PlayCircle, Package, CheckCircle2, XCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { simService, formatDate, formatCurrency, getOverdueGracePeriodSims } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
 import Link from "next/link";
 import { ExcelImport } from "@/components/ExcelImport";
-import { formatDate, formatCurrency, getOverdueGracePeriodSims } from "@/services/simService";
 import { useRouter } from "next/router";
 import { providerService } from "@/services/providerService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // Helper function
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -93,6 +100,10 @@ export default function SimCardsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
 
   // Action Dialog State
   const [actionDialog, setActionDialog] = useState<{
@@ -152,8 +163,36 @@ export default function SimCardsPage() {
   }, []);
 
   useEffect(() => {
-    filterSimCards();
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [searchQuery, statusFilter]);
+
+  // Memoized filtering for performance
+  const filteredSimCards = useMemo(() => {
+    let filtered = simCards;
+
+    if (searchQuery) {
+      filtered = filtered.filter(sim =>
+        sim.phone_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sim.iccid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sim.provider.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    if (statusFilter !== "ALL") {
+      filtered = filtered.filter(sim => sim.status === statusFilter);
+    }
+
+    return filtered;
   }, [simCards, searchQuery, statusFilter]);
+
+  // Paginated data
+  const paginatedSims = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredSimCards.slice(startIndex, endIndex);
+  }, [filteredSimCards, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredSimCards.length / itemsPerPage);
 
   // Check for overdue grace period SIMs (>30 days)
   useEffect(() => {
@@ -177,24 +216,6 @@ export default function SimCardsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const filterSimCards = () => {
-    let filtered = simCards;
-
-    if (searchQuery) {
-      filtered = filtered.filter(sim =>
-        sim.phone_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sim.iccid?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sim.provider.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== "ALL") {
-      filtered = filtered.filter(sim => sim.status === statusFilter);
-    }
-
-    setFilteredSims(filtered);
   };
 
   const handleAddSimCard = async () => {
@@ -611,8 +632,8 @@ export default function SimCardsPage() {
   };
 
   const getStatusCount = (status: SimStatus | "ALL") => {
-    if (status === "ALL") return simCards.length;
-    return simCards.filter(sim => sim.status === status).length;
+    if (status === "ALL") return filteredSimCards.length;
+    return filteredSimCards.filter(sim => sim.status === status).length;
   };
 
   return (
@@ -723,6 +744,13 @@ export default function SimCardsPage() {
         </Select>
       </div>
 
+      {/* Results Info */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-muted-foreground">
+          Showing {paginatedSims.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredSimCards.length)} of {filteredSimCards.length} results
+        </p>
+      </div>
+
       {/* Table */}
       <div className="rounded-md border">
         <Table>
@@ -738,14 +766,14 @@ export default function SimCardsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSims.length === 0 ? (
+            {paginatedSims.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   No SIM cards found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredSims.map((sim) => (
+              paginatedSims.map((sim) => (
                 <TableRow key={sim.id}>
                   <TableCell className="font-medium">
                     <Link href={`/sim-cards/${sim.id}`} className="hover:underline flex flex-col">
@@ -887,6 +915,54 @@ export default function SimCardsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              
+              {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = idx + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = idx + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + idx;
+                } else {
+                  pageNum = currentPage - 2 + idx;
+                }
+                
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(pageNum)}
+                      isActive={currentPage === pageNum}
+                      className="cursor-pointer"
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
 
       {/* Add SIM Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
