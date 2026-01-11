@@ -151,6 +151,11 @@ export default function ProvidersPage() {
     setSelectedProvider(null);
   };
 
+  // Open delete dialog
+  const openDeleteDialog = (provider: Provider) => {
+    setDeleteDialog({ open: true, provider });
+  };
+
   // Handle submit
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
@@ -302,22 +307,20 @@ export default function ProvidersPage() {
                           <span className="font-medium">{provider.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell>  {/* ⭐ NEW COLUMN */}
+                      <TableCell>
                         {provider.billing_cycle_day ? (
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium">Day {provider.billing_cycle_day}</span>
-                            <span className="text-xs text-muted-foreground">
-                              of month
-                            </span>
+                            <span className="text-xs text-muted-foreground">of month</span>
                           </div>
                         ) : (
                           <span className="text-muted-foreground text-sm">Not set</span>
                         )}
                       </TableCell>
-                      <TableCell>{provider.contact_person || <span className="text-muted-foreground">Not set</span>}</TableCell>
-                      <TableCell>{provider.contact_phone || <span className="text-muted-foreground">Not set</span>}</TableCell>
-                      <TableCell>{provider.contact_email || <span className="text-muted-foreground">Not set</span>}</TableCell>
+                      <TableCell>{provider.contact_person || "-"}</TableCell>
+                      <TableCell>{provider.contact_phone || "-"}</TableCell>
+                      <TableCell>{provider.contact_email || "-"}</TableCell>
                       <TableCell>
                         <Badge
                           variant={provider.is_active ? "default" : "secondary"}
@@ -326,7 +329,7 @@ export default function ProvidersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex gap-2 justify-end">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -337,11 +340,9 @@ export default function ProvidersPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() =>
-                              setDeleteDialog({ open: true, provider })
-                            }
+                            onClick={() => openDeleteDialog(provider)}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>

@@ -191,6 +191,7 @@ export default function SimCardsPage() {
         is_reactivated: false,
         replacement_reason: null,
         free_pulsa_months: null,
+        free_pulsa: 0, // ⭐ NEW: Initialize free_pulsa
         grace_period_start_date: null,
         grace_period_due_date: null
       };
