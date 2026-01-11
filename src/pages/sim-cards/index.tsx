@@ -1165,26 +1165,45 @@ export default function SimCardsPage() {
                 </div>
               )}
 
-              {actionDialog.type === "grace_period" && (
+              {actionDialog.type === "grace_period" && actionDialog.sim && (
                 <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="grace-period-date">Grace Period Start Date</Label>
-                    <Input
-                      id="grace-period-date"
-                      type="date"
-                      value={gracePeriodDate}
-                      onChange={(e) => setGracePeriodDate(e.target.value)}
-                    />
+                  <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h4 className="font-semibold mb-2 flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-600" />
+                      Informasi Grace Period
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Billing Cycle Day:</span>
+                        <span className="font-semibold">
+                          Day {actionDialog.sim.billing_cycle_day} setiap bulan
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Grace Period Start:</span>
+                        <span className="font-semibold">
+                          {(() => {
+                            const billingDay = actionDialog.sim.billing_cycle_day;
+                            if (!billingDay) return "N/A";
+                            const today = new Date();
+                            let gracePeriodStart = new Date(today.getFullYear(), today.getMonth(), billingDay);
+                            if (today.getDate() < billingDay) {
+                              gracePeriodStart = new Date(today.getFullYear(), today.getMonth() - 1, billingDay);
+                            }
+                            return formatDate(gracePeriodStart.toISOString());
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Max Duration:</span>
+                        <span className="font-semibold text-orange-600">30 hari</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="grace-period-due">Batas Bayar Langganan Pulsa</Label>
-                    <Input
-                      id="grace-period-due"
-                      type="date"
-                      value={actionFormData.dueDate}
-                      onChange={(e) => setActionFormData({...actionFormData, dueDate: e.target.value})}
-                    />
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    ⚠️ Grace Period akan dimulai dari <strong>Billing Cycle Day</strong> yang sudah ditentukan. 
+                    Admin harus melakukan deactivation manual jika customer tidak membayar dalam 30 hari.
+                  </p>
                 </div>
               )}
 
@@ -1252,11 +1271,11 @@ export default function SimCardsPage() {
               <Button variant="outline" onClick={closeActionDialog}>
                 Cancel
               </Button>
-              <Button onClick={handleActionSubmit}>
+              <Button onClick={actionDialog.type === "grace_period" ? handleMoveToGracePeriod : handleActionSubmit}>
                 {actionDialog.type === "activate" && "Activate"}
                 {actionDialog.type === "install" && "Install"}
                 {actionDialog.type === "billing" && "Move to Billing"}
-                {actionDialog.type === "grace_period" && "Set Grace Period"}
+                {actionDialog.type === "grace_period" && "Confirm Grace Period"}
                 {actionDialog.type === "deactivate" && "Deactivate"}
               </Button>
             </DialogFooter>
@@ -1481,9 +1500,10 @@ export default function SimCardsPage() {
                                     size="sm"
                                     variant="outline"
                                     className="text-orange-600 border-orange-600 hover:bg-orange-50"
-                                    onClick={() =>
-                                      openActionDialog(sim, "grace_period")
-                                    }
+                                    onClick={() => {
+                                      // Auto-calculate grace period based on billing_cycle_day
+                                      setActionDialog({ isOpen: true, type: 'grace_period', sim: sim });
+                                    }}
                                   >
                                     <AlertCircle className="h-4 w-4 mr-1" />
                                     Grace Period
