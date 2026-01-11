@@ -512,9 +512,8 @@ export default function SimCardsPage() {
           continue;
         }
 
-        if (!phoneNumber.startsWith("0")) {
-          phoneNumber = "0" + phoneNumber;
-        }
+        // Format phone number using the same function
+        phoneNumber = formatPhoneNumber(phoneNumber);
 
         if (existingPhoneNumbers.has(phoneNumber)) {
           duplicates.push(`${phoneNumber} (Row ${rowNum}) - Already exists in database`);
