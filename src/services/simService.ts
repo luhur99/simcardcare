@@ -156,13 +156,17 @@ export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
   }
 }
 
-// Calculate Grace Period Cost
+// Calculate Grace Period Cost (NEW LOGIC)
+// Periode: grace_period_start_date s/d sekarang
+// Jumlah hari overdue: dari start date sampai hari ini
+// Tarif harian = (Biaya Bulanan / 30) × Jumlah Hari Overdue
 export function calculateGracePeriodCost(sim: SimCard): {
   gracePeriodDays: number;
   gracePeriodCost: number;
+  dailyRate: number;
 } {
   if (sim.status !== 'GRACE_PERIOD' || !sim.grace_period_start_date) {
-    return { gracePeriodDays: 0, gracePeriodCost: 0 };
+    return { gracePeriodDays: 0, gracePeriodCost: 0, dailyRate: 0 };
   }
 
   const now = new Date();
@@ -170,14 +174,16 @@ export function calculateGracePeriodCost(sim: SimCard): {
   const monthlyRate = sim.monthly_cost || 0;
   const dailyRate = monthlyRate / 30;
 
-  // Grace period cost = dari start date sampai sekarang (atau deactivation date)
-  const endDate = sim.deactivation_date ? new Date(sim.deactivation_date) : now;
-  const gracePeriodDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const gracePeriodCost = gracePeriodDays * dailyRate;
+  // Jumlah hari overdue = dari grace_period_start_date sampai sekarang
+  const gracePeriodDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Biaya Grace Period = Tarif Harian × Jumlah Hari Overdue
+  const gracePeriodCost = dailyRate * gracePeriodDays;
 
   return {
     gracePeriodDays: Math.max(0, gracePeriodDays),
-    gracePeriodCost: Math.max(0, gracePeriodCost)
+    gracePeriodCost: Math.max(0, gracePeriodCost),
+    dailyRate
   };
 }
 
