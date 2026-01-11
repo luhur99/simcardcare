@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, Download, TrendingDown, DollarSign, Calendar, Ghost } from "lucide-react";
-import { simService, calculateDailyBurden } from "@/services/simService";
+import { simService, calculateDailyBurden, calculateGracePeriodCost, getGracePeriodStatus, calculateFreePulsaCost } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
 
 interface OverlapSimCard {
@@ -160,43 +160,47 @@ export default function ExecutiveSummary() {
     return cards.sort((a, b) => b.totalCost - a.totalCost);
   }, [simCards, selectedMonth]);
 
-  // Calculate Free Pulsa Cards
-  const freePulsaCards = useMemo(() => {
-    const cards: FreePulsaSimCard[] = [];
+  // Calculate Free Pulsa Cards - using function from simService
+  const freePulsaCosts = useMemo(() => {
+    const costs: Array<{
+      phoneNumber: string;
+      iccid: string;
+      provider: string;
+      totalFreeMonths: number;
+      monthsElapsed: number;
+      monthlyCost: number;
+      costIncurred: number;
+      imei: string | null;
+    }> = [];
 
     simCards.forEach(sim => {
-      if (sim.free_pulsa && sim.free_pulsa > 0 && sim.free_pulsa_months && sim.free_pulsa_months > 0) {
-        const installDate = sim.installation_date ? new Date(sim.installation_date) : null;
-        const now = new Date();
+      if (sim.free_pulsa_months && sim.installation_date && sim.monthly_cost) {
+        const calc = calculateFreePulsaCost(sim);
         
-        if (installDate) {
-          const monthsElapsed = Math.floor((now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-          const remainingMonths = Math.max(0, sim.free_pulsa_months - monthsElapsed);
-          
-          if (remainingMonths > 0) {
-            cards.push({
-              phoneNumber: sim.phone_number,
-              iccid: sim.iccid || "N/A",
-              provider: sim.provider,
-              freePulsaMonths: sim.free_pulsa_months,
-              monthlyPulsaCost: sim.free_pulsa,
-              totalFreePulsaCost: sim.free_pulsa * remainingMonths,
-              remainingMonths,
-              imei: sim.current_imei
-            });
-          }
+        // Only include if there's cost incurred (months have elapsed)
+        if (calc.costIncurred > 0) {
+          costs.push({
+            phoneNumber: sim.phone_number,
+            iccid: sim.iccid || "N/A",
+            provider: sim.provider,
+            totalFreeMonths: calc.totalFreeMonths,
+            monthsElapsed: calc.monthsElapsed,
+            monthlyCost: sim.monthly_cost,
+            costIncurred: calc.costIncurred,
+            imei: sim.current_imei
+          });
         }
       }
     });
 
-    return cards.sort((a, b) => b.totalFreePulsaCost - a.totalFreePulsaCost);
+    return costs.sort((a, b) => b.costIncurred - a.costIncurred);
   }, [simCards]);
 
   // Calculate Summary Metrics
   const metrics = useMemo(() => {
     const totalOverlapCost = overlapCards.reduce((sum, card) => sum + card.totalOverlapCost, 0);
     const totalPotentialLoss = potentialLossCards.reduce((sum, card) => sum + card.totalCost, 0);
-    const totalFreePulsaCost = freePulsaCards.reduce((sum, card) => sum + card.totalFreePulsaCost, 0);
+    const totalFreePulsaCost = freePulsaCosts.reduce((sum, card) => sum + card.costIncurred, 0);
 
     const gracePeriodCards = potentialLossCards.filter(c => c.status === "GRACE_PERIOD");
     const ghostCards = potentialLossCards.filter(c => c.status === "ACTIVATED");
@@ -210,7 +214,7 @@ export default function ExecutiveSummary() {
       ghostCount: ghostCards.length,
       ghostCost: ghostCards.reduce((sum, c) => sum + c.totalCost, 0)
     };
-  }, [overlapCards, potentialLossCards, freePulsaCards]);
+  }, [overlapCards, potentialLossCards, freePulsaCosts]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -306,21 +310,21 @@ export default function ExecutiveSummary() {
   };
 
   const exportFreePulsaData = () => {
-    const data = freePulsaCards.map(card => ({
+    const data = freePulsaCosts.map(card => ({
       no_sim_card: card.phoneNumber,
       iccid: card.iccid,
       provider: card.provider,
       imei: card.imei || "-",
-      free_pulsa_months: card.freePulsaMonths,
-      monthly_pulsa_cost: card.monthlyPulsaCost.toFixed(2),
-      remaining_months: card.remainingMonths,
-      total_free_pulsa_cost: card.totalFreePulsaCost.toFixed(2)
+      free_pulsa_months: card.totalFreeMonths,
+      monthly_pulsa_cost: card.monthlyCost.toFixed(2),
+      months_elapsed: card.monthsElapsed,
+      total_free_pulsa_cost: card.costIncurred.toFixed(2)
     }));
 
     exportToExcel(
       data,
       "Laporan-Biaya-Free-Pulsa",
-      ["No SIM Card", "ICCID", "Provider", "IMEI", "Free Pulsa Months", "Monthly Pulsa Cost", "Remaining Months", "Total Free Pulsa Cost"]
+      ["No SIM Card", "ICCID", "Provider", "IMEI", "Free Pulsa Months", "Monthly Pulsa Cost", "Months Elapsed", "Total Free Pulsa Cost"]
     );
   };
 
@@ -627,20 +631,20 @@ export default function ExecutiveSummary() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {freePulsaCards.map((card, index) => (
-                      <TableRow key={`${card.phoneNumber}-${index}`}>
+                    {freePulsaCosts.map((item, index) => (
+                      <TableRow key={`${item.phoneNumber}-${index}`}>
                         <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-mono">{card.phoneNumber}</TableCell>
-                        <TableCell className="font-mono text-sm">{card.iccid}</TableCell>
-                        <TableCell>{card.provider}</TableCell>
-                        <TableCell className="font-mono text-sm">{card.imei || "-"}</TableCell>
-                        <TableCell className="text-right">{card.freePulsaMonths} bulan</TableCell>
+                        <TableCell className="font-mono">{item.phoneNumber}</TableCell>
+                        <TableCell className="font-mono text-sm">{item.iccid}</TableCell>
+                        <TableCell>{item.provider}</TableCell>
+                        <TableCell className="font-mono text-sm">{item.imei || "-"}</TableCell>
+                        <TableCell className="text-right">{item.totalFreeMonths} bulan</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{card.remainingMonths} bulan</Badge>
+                          <Badge variant="outline">{item.monthsElapsed} bulan</Badge>
                         </TableCell>
-                        <TableCell className="text-right">{formatCurrency(card.monthlyPulsaCost)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(item.monthlyCost)}</TableCell>
                         <TableCell className="text-right font-semibold text-blue-600">
-                          {formatCurrency(card.totalFreePulsaCost)}
+                          {formatCurrency(item.costIncurred)}
                         </TableCell>
                       </TableRow>
                     ))}

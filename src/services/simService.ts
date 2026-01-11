@@ -184,6 +184,60 @@ export function calculateGracePeriodCost(sim: SimCard): {
   };
 }
 
+// Calculate Free Pulsa Cost (for tracking operational costs)
+// Calculation: Months elapsed since installation × Monthly cost
+export function calculateFreePulsaCost(simCard: SimCard) {
+  if (!simCard.free_pulsa_months || !simCard.installation_date || !simCard.monthly_cost) {
+    return {
+      monthsElapsed: 0,
+      totalFreeMonths: 0,
+      costIncurred: 0,
+      isActive: false,
+      expiryDate: null,
+      daysRemaining: 0,
+      progressPercent: 0
+    };
+  }
+
+  const installDate = new Date(simCard.installation_date);
+  const today = new Date();
+  
+  // Calculate months elapsed (inclusive of current month if started)
+  const yearDiff = today.getFullYear() - installDate.getFullYear();
+  const monthDiff = today.getMonth() - installDate.getMonth();
+  const monthsElapsed = yearDiff * 12 + monthDiff + 1; // +1 because first month counts
+  
+  // Calculate expiry date (end of the last free month)
+  const expiryDate = new Date(installDate);
+  expiryDate.setMonth(expiryDate.getMonth() + simCard.free_pulsa_months);
+  expiryDate.setDate(0); // Last day of previous month (end of free period)
+  
+  // Check if still active
+  const isActive = today <= expiryDate;
+  
+  // Calculate cost incurred (only up to free_pulsa_months)
+  const monthsToCharge = Math.min(monthsElapsed, simCard.free_pulsa_months);
+  const costIncurred = simCard.monthly_cost * monthsToCharge;
+  
+  // Calculate days remaining
+  const daysRemaining = isActive 
+    ? Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  
+  // Calculate progress percentage
+  const progressPercent = Math.min((monthsElapsed / simCard.free_pulsa_months) * 100, 100);
+  
+  return {
+    monthsElapsed: monthsToCharge,
+    totalFreeMonths: simCard.free_pulsa_months,
+    costIncurred,
+    isActive,
+    expiryDate,
+    daysRemaining,
+    progressPercent
+  };
+}
+
 // Mock Data for initial setup
 const MOCK_SIMS: SimCard[] = [
   {
