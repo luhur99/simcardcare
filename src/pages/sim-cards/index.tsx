@@ -848,7 +848,7 @@ export default function SimCardsPage() {
 
         {/* Action Dialog (Activate / Install / Grace Period / Reactivate / Deactivate) */}
         <Dialog open={actionDialog.isOpen} onOpenChange={closeActionDialog}>
-          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {actionDialog.type === "activate" && "Activate SIM Card"}
@@ -859,8 +859,7 @@ export default function SimCardsPage() {
               </DialogTitle>
             </DialogHeader>
 
-            {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div className="space-y-4 py-4">
               {actionDialog.type === "activate" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -1090,8 +1089,7 @@ export default function SimCardsPage() {
               )}
             </div>
 
-            {/* Sticky Footer with Buttons */}
-            <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t mt-4">
+            <DialogFooter>
               <Button variant="outline" onClick={closeActionDialog}>
                 Cancel
               </Button>
