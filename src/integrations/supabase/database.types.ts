@@ -253,6 +253,8 @@ export type Database = {
           phone_number: string
           plan_name: string | null
           provider: string | null
+          purchase_date: string | null
+          reactivation_date: string | null
           replacement_reason: string | null
           status: Database["public"]["Enums"]["sim_status"]
           updated_at: string | null
@@ -279,6 +281,8 @@ export type Database = {
           phone_number: string
           plan_name?: string | null
           provider?: string | null
+          purchase_date?: string | null
+          reactivation_date?: string | null
           replacement_reason?: string | null
           status?: Database["public"]["Enums"]["sim_status"]
           updated_at?: string | null
@@ -305,6 +309,8 @@ export type Database = {
           phone_number?: string
           plan_name?: string | null
           provider?: string | null
+          purchase_date?: string | null
+          reactivation_date?: string | null
           replacement_reason?: string | null
           status?: Database["public"]["Enums"]["sim_status"]
           updated_at?: string | null

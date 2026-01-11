@@ -120,13 +120,8 @@ export default function SimCardsPage() {
     purchase_date: "",
     billing_cycle_day: "",
     status: "WAREHOUSE" as SimStatus,
-    current_imei: "",
     monthly_cost: "",
-    notes: "",
-    activation_date: "",
-    installation_date: "",
-    deactivation_date: "",
-    deactivation_reason: ""
+    notes: ""
   });
 
   const [selectedSim, setSelectedSim] = useState<SimCard | null>(null);
@@ -191,11 +186,6 @@ export default function SimCardsPage() {
         return;
       }
 
-      if (formData.status === "DEACTIVATED" && !formData.deactivation_reason) {
-        alert("Alasan Deaktivasi wajib diisi untuk status DEACTIVATED!");
-        return;
-      }
-
       const newSim = {
         phone_number: formData.phone_number,
         iccid: formData.iccid || null,
@@ -203,22 +193,23 @@ export default function SimCardsPage() {
         plan_name: formData.plan_name || null,
         purchase_date: formData.purchase_date || null,
         billing_cycle_day: formData.billing_cycle_day ? parseInt(formData.billing_cycle_day) : null,
+        billing_cycle_source: null,
         status: formData.status,
-        current_imei: formData.current_imei || null,
-        activation_date: formData.activation_date || null,
-        installation_date: formData.installation_date || null,
-        deactivation_date: formData.deactivation_date || null,
-        deactivation_reason: formData.deactivation_reason || null,
+        current_imei: null,
+        activation_date: null,
+        installation_date: null,
+        deactivation_date: null,
+        deactivation_reason: null,
+        replacement_reason: null,
         monthly_cost: Number(formData.monthly_cost) || 0,
         accumulated_cost: 0,
-        notes: formData.notes || null,
-        is_reactivated: false,
-        replacement_reason: null,
         free_pulsa_months: null,
         free_pulsa: 0,
         grace_period_start_date: null,
         grace_period_due_date: null,
-        reactivation_date: null
+        reactivation_date: null,
+        is_reactivated: false,
+        notes: formData.notes || null
       };
 
       await simService.createSimCard(newSim);
@@ -239,13 +230,8 @@ export default function SimCardsPage() {
       purchase_date: "",
       billing_cycle_day: "",
       status: "WAREHOUSE",
-      current_imei: "",
       monthly_cost: "",
-      notes: "",
-      activation_date: "",
-      installation_date: "",
-      deactivation_date: "",
-      deactivation_reason: ""
+      notes: ""
     });
   };
 
@@ -978,6 +964,18 @@ export default function SimCardsPage() {
                 value={formData.monthly_cost}
                 onChange={(e) => setFormData({ ...formData, monthly_cost: e.target.value })}
                 className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="notes" className="text-right">
+                Notes
+              </Label>
+              <Input
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="col-span-3"
+                placeholder="Optional notes"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
