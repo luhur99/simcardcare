@@ -647,142 +647,55 @@ export default function SimCardsPage() {
       />
 
       <div className="space-y-6">
-        {/* Admin Alert Banner for Overdue Grace Period (>30 days) - Enhanced UI */}
+        {/* Admin Alert Banner for Overdue Grace Period (>30 days) */}
         {overdueGraceSims.length > 0 && (
-          <Alert className="border-2 border-red-500 bg-gradient-to-r from-red-50 via-orange-50 to-red-50 dark:from-red-950/20 dark:via-orange-950/20 dark:to-red-950/20 shadow-lg">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0">
-                <div className="relative">
-                  <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 animate-pulse" />
-                  <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full animate-ping"></div>
-                </div>
-              </div>
-              
-              <div className="flex-1 space-y-3">
-                {/* Header */}
-                <div className="space-y-1">
-                  <AlertTitle className="text-xl font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
-                    🚨 URGENT: Admin Action Required!
-                    <Badge variant="destructive" className="ml-2 animate-pulse">
-                      {overdueGraceSims.length} SIM Card{overdueGraceSims.length > 1 ? 's' : ''}
-                    </Badge>
-                  </AlertTitle>
-                  <AlertDescription>
-                    <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                      SIM Card{overdueGraceSims.length > 1 ? 's' : ''} berikut telah berada di Grace Period lebih dari <span className="underline">30 hari maksimal</span>!
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      📋 Policy: SIM Card harus di-deactivate secara manual oleh Admin dalam waktu maksimal 30 hari sejak Grace Period dimulai.
-                    </p>
-                  </AlertDescription>
-                </div>
-
-                {/* SIM List */}
-                <div className="space-y-2">
-                  {overdueGraceSims.slice(0, 5).map((sim) => {
-                    const graceStatus = getGracePeriodStatus(sim);
-                    const graceCost = calculateGracePeriodCost(sim);
-                    
-                    return (
-                      <div 
-                        key={sim.id} 
-                        className="bg-white dark:bg-gray-900 p-4 rounded-lg border-2 border-red-200 dark:border-red-800 shadow-sm hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          {/* SIM Info */}
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <Badge variant="outline" className="font-mono text-base font-bold border-red-600 text-red-600">
-                                {sim.phone_number}
-                              </Badge>
-                              <Badge variant="secondary" className="text-xs">
-                                {sim.provider}
-                              </Badge>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-muted-foreground">Grace Start:</span>
-                                <span className="ml-1 font-semibold">{formatDate(sim.grace_period_start_date)}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Monthly Cost:</span>
-                                <span className="ml-1 font-semibold">{formatCurrency(sim.monthly_cost || 0)}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Stats */}
-                          <div className="flex items-center gap-4 px-4 border-l-2 border-red-200 dark:border-red-800">
-                            <div className="text-center">
-                              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                                Total Hari
-                              </div>
-                              <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                                {graceStatus.daysInGracePeriod}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground mt-0.5">
-                                hari overdue
-                              </div>
-                            </div>
-                            
-                            <div className="text-center">
-                              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                                Overdue
-                              </div>
-                              <div className="text-2xl font-bold text-red-600 dark:text-red-400 animate-pulse">
-                                +{graceStatus.daysInGracePeriod - 30}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground mt-0.5">
-                                dari batas
-                              </div>
-                            </div>
-
-                            <div className="text-center">
-                              <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                                Biaya
-                              </div>
-                              <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                                {formatCurrency(graceCost.gracePeriodCost)}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                                {formatCurrency(graceCost.dailyRate)}/hari
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Action Button */}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="flex-shrink-0 font-semibold shadow-md hover:shadow-lg transition-all"
-                            onClick={() => openActionDialog(sim, "deactivate")}
-                          >
-                            <XCircle className="h-4 w-4 mr-2" />
-                            Deactivate Now
-                          </Button>
+          <Alert className="border-red-500 bg-red-50 dark:bg-red-950/20">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <AlertTitle className="text-red-600">
+              Admin Action Required - {overdueGraceSims.length} SIM Card{overdueGraceSims.length > 1 ? 's' : ''} Overdue
+            </AlertTitle>
+            <AlertDescription>
+              <p className="text-sm mb-3">
+                SIM Card berikut telah di Grace Period lebih dari 30 hari. Segera deactivate!
+              </p>
+              <div className="space-y-2">
+                {overdueGraceSims.slice(0, 5).map((sim) => {
+                  const graceStatus = getGracePeriodStatus(sim);
+                  const graceCost = calculateGracePeriodCost(sim);
+                  
+                  return (
+                    <div key={sim.id} className="flex items-center justify-between gap-4 p-2 bg-white dark:bg-gray-900 rounded border">
+                      <div className="flex-1">
+                        <div className="font-semibold">{sim.phone_number}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {sim.provider} • Grace: {formatDate(sim.grace_period_start_date)} • {graceStatus.daysInGracePeriod} hari • {formatCurrency(graceCost.gracePeriodCost)}
                         </div>
                       </div>
-                    );
-                  })}
-                  
-                  {overdueGraceSims.length > 5 && (
-                    <div className="text-center pt-2">
-                      <p className="text-sm text-muted-foreground">
-                        + <span className="font-semibold text-red-600 dark:text-red-400">{overdueGraceSims.length - 5}</span> SIM Card lainnya.{' '}
-                        <Button 
-                          variant="link" 
-                          className="text-red-600 dark:text-red-400 p-0 h-auto font-semibold underline"
-                          onClick={() => setStatusFilter("GRACE_PERIOD")}
-                        >
-                          Filter status "Grace Period" untuk melihat semua →
-                        </Button>
-                      </p>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => openActionDialog(sim, "deactivate")}
+                      >
+                        Deactivate
+                      </Button>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
+                
+                {overdueGraceSims.length > 5 && (
+                  <p className="text-sm text-muted-foreground">
+                    + {overdueGraceSims.length - 5} lainnya.{' '}
+                    <Button 
+                      variant="link" 
+                      className="p-0 h-auto"
+                      onClick={() => setStatusFilter("GRACE_PERIOD")}
+                    >
+                      Lihat semua
+                    </Button>
+                  </p>
+                )}
               </div>
-            </div>
+            </AlertDescription>
           </Alert>
         )}
 
@@ -1474,93 +1387,24 @@ export default function SimCardsPage() {
                                       : sim.status}
                                   </Badge>
                                   
-                                  {/* Grace Period Details - Enhanced UI/UX */}
+                                  {/* Grace Period Details - Simple Design */}
                                   {sim.status === "GRACE_PERIOD" && graceStatus && graceCost && (
-                                    <div className="space-y-3 mt-2 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                                      {/* Header: Days Counter */}
-                                      <div className="flex items-center justify-between pb-2 border-b border-orange-200 dark:border-orange-800">
-                                        <div className="flex items-center gap-2">
-                                          <div className={`w-2 h-2 rounded-full animate-pulse ${
-                                            graceStatus.daysInGracePeriod <= 10 ? 'bg-green-500' :
-                                            graceStatus.daysInGracePeriod <= 20 ? 'bg-yellow-500' :
-                                            graceStatus.daysInGracePeriod <= 30 ? 'bg-orange-500' :
-                                            'bg-red-500'
-                                          }`}></div>
-                                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                                            Overdue Status
-                                          </span>
-                                        </div>
-                                        <Badge 
-                                          variant="outline" 
-                                          className={`font-bold ${
-                                            graceStatus.daysInGracePeriod <= 10 ? 'text-green-600 border-green-600' :
-                                            graceStatus.daysInGracePeriod <= 20 ? 'text-yellow-600 border-yellow-600' :
-                                            graceStatus.daysInGracePeriod <= 30 ? 'text-orange-600 border-orange-600' :
-                                            'text-red-600 border-red-600 animate-pulse'
-                                          }`}
-                                        >
-                                          {graceCost.gracePeriodDays} Hari
-                                        </Badge>
+                                    <div className="text-xs space-y-1 text-muted-foreground">
+                                      <div>
+                                        <span className="font-semibold">Periode:</span> {formatDate(sim.grace_period_start_date)} s/d Sekarang
                                       </div>
-
-                                      {/* Periode */}
-                                      <div className="space-y-1">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                            📅 Periode
-                                          </span>
-                                        </div>
-                                        <div className="text-xs font-medium text-foreground pl-4">
-                                          {formatDate(sim.grace_period_start_date)} s/d Sekarang
-                                        </div>
+                                      <div>
+                                        <span className="font-semibold">Hari Overdue:</span> <span className="text-orange-600 font-bold">{graceCost.gracePeriodDays} hari</span>
                                       </div>
-
-                                      {/* Tarif Harian - Formula Display */}
-                                      <div className="space-y-1 bg-white dark:bg-gray-900/50 p-2 rounded border border-orange-100 dark:border-orange-900">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                            💰 Tarif Harian
-                                          </span>
-                                        </div>
-                                        <div className="text-xs font-mono pl-4 space-y-0.5">
-                                          <div className="text-muted-foreground">
-                                            {formatCurrency(sim.monthly_cost || 0)} ÷ 30 hari
-                                          </div>
-                                          <div className="text-sm font-bold text-foreground">
-                                            = {formatCurrency(graceCost.dailyRate)}/hari
-                                          </div>
-                                        </div>
+                                      <div>
+                                        <span className="font-semibold">Tarif Harian:</span> {formatCurrency(graceCost.dailyRate)}/hari
                                       </div>
-
-                                      {/* Biaya Grace Period - Highlighted */}
-                                      <div className="space-y-1 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 p-3 rounded-lg border-2 border-red-200 dark:border-red-800">
-                                        <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">
-                                            🔥 Biaya Overdue
-                                          </span>
-                                        </div>
-                                        <div className="pl-4 space-y-1">
-                                          <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                                            {formatCurrency(graceCost.gracePeriodCost)}
-                                          </div>
-                                          <div className="text-[10px] text-muted-foreground font-mono">
-                                            {formatCurrency(graceCost.dailyRate)}/hari × {graceCost.gracePeriodDays} hari
-                                          </div>
-                                        </div>
+                                      <div>
+                                        <span className="font-semibold">Biaya:</span> <span className="text-red-600 font-bold">{formatCurrency(graceCost.gracePeriodCost)}</span>
                                       </div>
-
-                                      {/* Warning Alert - Only if >30 days */}
                                       {graceStatus.exceedsMaxDuration && (
-                                        <div className="bg-red-100 dark:bg-red-950/30 border-2 border-red-300 dark:border-red-700 rounded-lg p-2.5 space-y-1">
-                                          <div className="flex items-center gap-2">
-                                            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 animate-pulse" />
-                                            <span className="text-xs font-bold text-red-600 dark:text-red-400">
-                                              CRITICAL: Overdue {graceStatus.daysInGracePeriod - 30} hari dari batas!
-                                            </span>
-                                          </div>
-                                          <p className="text-[10px] text-red-600 dark:text-red-400 pl-6">
-                                            ⚠️ Admin HARUS deactivate segera! Policy max: 30 hari.
-                                          </p>
+                                        <div className="text-red-600 font-semibold">
+                                          ⚠️ OVERDUE {graceStatus.daysInGracePeriod - 30} hari!
                                         </div>
                                       )}
                                     </div>

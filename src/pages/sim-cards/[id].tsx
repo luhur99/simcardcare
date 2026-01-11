@@ -315,6 +315,35 @@ export default function SimCardDetailPage() {
                   <p className="text-sm text-muted-foreground">IMEI Terpasang</p>
                   <p className="font-medium">{simCard.current_imei || "-"}</p>
                 </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Pulsa Gratis</p>
+                  <p className="font-medium">
+                    {simCard.free_pulsa_months ? (
+                      <Badge variant="secondary" className="font-normal">
+                        {simCard.free_pulsa_months} bulan
+                      </Badge>
+                    ) : (
+                      "-"
+                    )}
+                  </p>
+                </div>
+                {simCard.status === "GRACE_PERIOD" && simCard.grace_period_start_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Hari di Grace Period</p>
+                    <p className="font-medium">
+                      <Badge variant="destructive" className="font-normal">
+                        {(() => {
+                          const startDate = new Date(simCard.grace_period_start_date);
+                          const today = new Date();
+                          const days = Math.floor(
+                            (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+                          );
+                          return `${days} hari`;
+                        })()}
+                      </Badge>
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Billing Cycle Day</p>
