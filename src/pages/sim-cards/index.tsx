@@ -29,13 +29,13 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package, AlertTriangle, Bell } from "lucide-react";
+import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package, AlertTriangle, Bell, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
 import Link from "next/link";
 import { ExcelImport } from "@/components/ExcelImport";
-import { formatDate, formatCurrency, getGracePeriodStatus, getOverdueGracePeriodSims } from "@/services/simService";
+import { formatDate, formatCurrency, getGracePeriodStatus, getOverdueGracePeriodSims, calculateGracePeriodCost } from "@/services/simService";
 import { useRouter } from "next/router";
 import { providerService } from "@/services/providerService";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -583,18 +583,35 @@ export default function SimCardsPage() {
     try {
       setIsSubmitting(true);
 
+      // NEW LOGIC:
+      // Batas Bayar = Billing Cycle Day (tanggal jatuh tempo bulanan)
+      // Grace Period Start = Billing Cycle Day (hari setelah batas bayar terlewati)
+      // Admin harus manual deactivate dalam max 30 hari
+      // Jika >30 hari, sistem kirim alert ke admin
+      
+      const billingDay = actionDialog.sim.billing_cycle_day;
+      
+      if (!billingDay) {
+        toast({
+          title: "Error",
+          description: "Billing cycle day belum diset. Tidak bisa masuk Grace Period.",
+          variant: "destructive"
+        });
+        return;
+      }
+
       // Calculate grace period start date
-      // Grace Period Start = Next day after billing cycle day (Batas Bayar)
+      // Grace Period starts on the billing cycle day (when payment is due)
       const today = new Date();
-      const billingDay = actionDialog.sim.billing_cycle_day || 1;
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
       
-      // Grace period starts the day after billing day
-      const gracePeriodStart = new Date(today.getFullYear(), today.getMonth(), billingDay + 1);
+      // Grace period start = billing day of current month
+      let gracePeriodStart = new Date(currentYear, currentMonth, billingDay);
       
-      // If billing day already passed this month, grace period already started
-      if (today.getDate() > billingDay) {
-        // Use current month
-        gracePeriodStart.setMonth(today.getMonth());
+      // If today is before billing day, use last month's billing day
+      if (today.getDate() < billingDay) {
+        gracePeriodStart = new Date(currentYear, currentMonth - 1, billingDay);
       }
 
       await simService.updateSimCard(actionDialog.sim.id, {
@@ -605,7 +622,7 @@ export default function SimCardsPage() {
 
       toast({
         title: "Moved to Grace Period",
-        description: `SIM Card ${actionDialog.sim.iccid} sekarang dalam masa Grace Period. Admin harus manual deactivate setelah max 30 hari.`,
+        description: `SIM Card ${actionDialog.sim.phone_number} sekarang dalam Grace Period. Batas Bayar: ${formatDate(gracePeriodStart)}. Admin harus deactivate secara manual jika customer tidak bayar dalam 30 hari.`,
         variant: "default"
       });
 
@@ -630,6 +647,64 @@ export default function SimCardsPage() {
       />
 
       <div className="space-y-6">
+        {/* Admin Alert Banner for Overdue Grace Period (>30 days) */}
+        {overdueGraceSims.length > 0 && (
+          <Alert variant="destructive" className="border-red-600 bg-red-50 dark:bg-red-950/20">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 mt-0.5 animate-pulse" />
+              <div className="flex-1">
+                <AlertTitle className="text-lg font-bold mb-2">
+                  🚨 URGENT: Admin Action Required!
+                </AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p className="font-semibold">
+                    {overdueGraceSims.length} SIM Card{overdueGraceSims.length > 1 ? 's' : ''} telah berada di Grace Period lebih dari 30 hari maksimal!
+                  </p>
+                  <p className="text-sm">
+                    Menurut policy perusahaan, SIM Card harus di-deactivate secara manual oleh Admin dalam waktu maksimal 30 hari sejak Grace Period dimulai.
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {overdueGraceSims.slice(0, 5).map((sim) => {
+                      const graceStatus = getGracePeriodStatus(sim);
+                      return (
+                        <div key={sim.id} className="flex items-center justify-between bg-white dark:bg-gray-900 p-3 rounded-lg border border-red-200">
+                          <div className="flex-1">
+                            <p className="font-mono font-semibold">{sim.phone_number}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Provider: {sim.provider} • Grace Period Start: {formatDate(sim.grace_period_start_date)}
+                            </p>
+                          </div>
+                          <div className="text-right mr-4">
+                            <p className="text-sm font-bold text-red-600">
+                              {graceStatus.daysInGracePeriod} hari
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Overdue: {graceStatus.daysInGracePeriod - 30} hari
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => openActionDialog(sim, "deactivate")}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />
+                            Deactivate Now
+                          </Button>
+                        </div>
+                      );
+                    })}
+                    {overdueGraceSims.length > 5 && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        + {overdueGraceSims.length - 5} lainnya. Filter status "Grace Period" untuk melihat semua.
+                      </p>
+                    )}
+                  </div>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
+
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold">SIM Cards Management</h1>
@@ -1312,37 +1387,43 @@ export default function SimCardsPage() {
                                       ? "Grace Period"
                                       : sim.status}
                                   </Badge>
-                                  {sim.status === "GRACE_PERIOD" &&
-                                    sim.grace_period_due_date && (
-                                      <div className="text-xs space-y-1">
-                                        <div
-                                          className={`font-medium ${daysColor}`}
-                                        >
-                                          Overdue: {daysOverdue} hari
-                                        </div>
-                                        <div className="text-muted-foreground">
-                                          Due:{" "}
-                                          {new Date(
-                                            sim.grace_period_due_date
-                                          ).toLocaleDateString("id-ID")}
-                                        </div>
-                                        <div
-                                          className={`font-semibold ${costColor}`}
-                                        >
-                                          Biaya:{" "}
-                                          {new Intl.NumberFormat("id-ID", {
-                                            style: "currency",
-                                            currency: "IDR",
-                                            minimumFractionDigits: 0,
-                                          }).format(graceCost.gracePeriodCost)}
-                                        </div>
-                                        {graceStatus?.exceedsMaxDuration && (
-                                          <div className="text-xs text-red-600">
-                                            ⚠️ Overdue grace period
-                                          </div>
-                                        )}
+                                  
+                                  {/* Grace Period Details */}
+                                  {sim.status === "GRACE_PERIOD" && graceStatus && (
+                                    <div className="text-xs space-y-1 mt-1">
+                                      <div className={`font-semibold ${graceStatus.daysInGracePeriod <= 10 ? 'text-yellow-600' : graceStatus.daysInGracePeriod <= 20 ? 'text-orange-600' : 'text-red-600'}`}>
+                                        {graceStatus.daysInGracePeriod} hari di Grace Period
                                       </div>
-                                    )}
+                                      <div className="text-muted-foreground text-[10px]">
+                                        Start: {formatDate(sim.grace_period_start_date)}
+                                      </div>
+                                      
+                                      {/* Warning if >30 days */}
+                                      {graceStatus.exceedsMaxDuration && (
+                                        <div className="bg-red-100 dark:bg-red-950/30 border border-red-300 rounded px-2 py-1 mt-1">
+                                          <div className="flex items-center gap-1">
+                                            <AlertTriangle className="h-3 w-3 text-red-600" />
+                                            <span className="text-red-600 font-bold text-[10px]">
+                                              OVERDUE {graceStatus.daysInGracePeriod - 30} hari!
+                                            </span>
+                                          </div>
+                                          <p className="text-[9px] text-red-600 mt-0.5">
+                                            Admin harus deactivate!
+                                          </p>
+                                        </div>
+                                      )}
+                                      
+                                      {/* Grace Period Cost */}
+                                      {(() => {
+                                        const graceCost = calculateGracePeriodCost(sim);
+                                        return graceCost.gracePeriodCost > 0 ? (
+                                          <div className="text-muted-foreground">
+                                            Biaya: {formatCurrency(graceCost.gracePeriodCost)}
+                                          </div>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })()}
