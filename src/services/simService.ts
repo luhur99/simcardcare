@@ -22,6 +22,81 @@ const setLocalStorage = (key: string, value: string): void => {
   }
 };
 
+// Helper function to calculate days between two dates
+export const calculateDaysBetween = (startDate: string | Date, endDate: string | Date = new Date()): number => {
+  const start = typeof startDate === 'string' ? new Date(startDate) : startDate;
+  const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
+// Calculate grace period status and days
+export const getGracePeriodStatus = (sim: SimCard): {
+  daysInGracePeriod: number;
+  exceedsMaxDuration: boolean;
+  requiresAdminAlert: boolean;
+  gracePeriodStartDate: string | null;
+} => {
+  if (sim.status !== 'GRACE_PERIOD' || !sim.grace_period_start_date) {
+    return {
+      daysInGracePeriod: 0,
+      exceedsMaxDuration: false,
+      requiresAdminAlert: false,
+      gracePeriodStartDate: null
+    };
+  }
+
+  const daysInGracePeriod = calculateDaysBetween(sim.grace_period_start_date);
+  const MAX_GRACE_PERIOD_DAYS = 30;
+  const exceedsMaxDuration = daysInGracePeriod > MAX_GRACE_PERIOD_DAYS;
+  const requiresAdminAlert = exceedsMaxDuration;
+
+  return {
+    daysInGracePeriod,
+    exceedsMaxDuration,
+    requiresAdminAlert,
+    gracePeriodStartDate: sim.grace_period_start_date
+  };
+};
+
+// Get all SIMs that require admin attention (>30 days in grace period)
+export const getOverdueGracePeriodSims = async (): Promise<SimCard[]> => {
+  try {
+    const allSims = await simService.getSimCards();
+    const overdueSims = allSims.filter(sim => {
+      if (sim.status !== 'GRACE_PERIOD') return false;
+      const status = getGracePeriodStatus(sim);
+      return status.requiresAdminAlert;
+    });
+    return overdueSims;
+  } catch (error) {
+    console.error('Error getting overdue grace period SIMs:', error);
+    return [];
+  }
+};
+
+// Format date for display
+export const formatDate = (date: string | Date | null): string => {
+  if (!date) return '-';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
+// Format currency
+export const formatCurrency = (amount: number | null): string => {
+  if (!amount) return 'Rp 0';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+  }).format(amount);
+};
+
 // Helper to calculate daily burden (client-side for mock data)
 export function calculateDailyBurden(sim: SimCard): DailyBurdenResult {
   try {

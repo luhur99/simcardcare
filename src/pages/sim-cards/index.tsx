@@ -29,15 +29,17 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package } from "lucide-react";
+import { Plus, Search, Download, Eye, Upload, AlertCircle, CheckCircle2, XCircle, PlayCircle, Package, AlertTriangle, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
 import Link from "next/link";
 import { ExcelImport } from "@/components/ExcelImport";
-import { calculateGracePeriodCost } from "@/services/simService";
+import { formatDate, formatCurrency, getGracePeriodStatus, getOverdueGracePeriodSims } from "@/services/simService";
 import { useRouter } from "next/router";
 import { providerService } from "@/services/providerService";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 
 // Helper function
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -70,6 +72,8 @@ export default function SimCardsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
   const router = useRouter();
 
   // Action Dialog State
@@ -127,6 +131,8 @@ export default function SimCardsPage() {
   const [selectedSim, setSelectedSim] = useState<SimCard | null>(null);
   const [activationDate, setActivationDate] = useState(getTodayDate());
 
+  const [overdueGraceSims, setOverdueGraceSims] = useState<SimCard[]>([]);
+
   useEffect(() => {
     loadSimCards();
   }, []);
@@ -134,6 +140,18 @@ export default function SimCardsPage() {
   useEffect(() => {
     filterSimCards();
   }, [simCards, searchQuery, statusFilter]);
+
+  // Check for overdue grace period SIMs (>30 days)
+  useEffect(() => {
+    const checkOverdueGrace = async () => {
+      const overdue = await getOverdueGracePeriodSims();
+      setOverdueGraceSims(overdue);
+    };
+    
+    if (simCards.length > 0) {
+      checkOverdueGrace();
+    }
+  }, [simCards]);
 
   const loadSimCards = async () => {
     setIsLoading(true);
@@ -519,16 +537,6 @@ export default function SimCardsPage() {
     };
   };
 
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null || amount === undefined) return "Rp 0";
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
   const getActionDialogTitle = () => {
     switch (actionDialog.type) {
       case "activate":
@@ -566,6 +574,52 @@ export default function SimCardsPage() {
   const getStatusCount = (status: SimStatus | "ALL") => {
     if (status === "ALL") return simCards.length;
     return simCards.filter(sim => sim.status === status).length;
+  };
+
+  // Move to Grace Period (when payment overdue after billing cycle day)
+  const handleMoveToGracePeriod = async () => {
+    if (!actionDialog.sim) return;
+
+    try {
+      setIsSubmitting(true);
+
+      // Calculate grace period start date
+      // Grace Period Start = Next day after billing cycle day (Batas Bayar)
+      const today = new Date();
+      const billingDay = actionDialog.sim.billing_cycle_day || 1;
+      
+      // Grace period starts the day after billing day
+      const gracePeriodStart = new Date(today.getFullYear(), today.getMonth(), billingDay + 1);
+      
+      // If billing day already passed this month, grace period already started
+      if (today.getDate() > billingDay) {
+        // Use current month
+        gracePeriodStart.setMonth(today.getMonth());
+      }
+
+      await simService.updateSimCard(actionDialog.sim.id, {
+        status: "GRACE_PERIOD",
+        grace_period_start_date: gracePeriodStart.toISOString().split('T')[0],
+        updated_at: new Date().toISOString()
+      });
+
+      toast({
+        title: "Moved to Grace Period",
+        description: `SIM Card ${actionDialog.sim.iccid} sekarang dalam masa Grace Period. Admin harus manual deactivate setelah max 30 hari.`,
+        variant: "default"
+      });
+
+      await loadSimCards();
+      setActionDialog({ isOpen: false, type: null, sim: null });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to move to grace period",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -1065,6 +1119,42 @@ export default function SimCardsPage() {
                 </div>
               )}
 
+              {/* Deactivate Dialog */}
+              <Dialog 
+                open={actionDialog.isOpen && actionDialog.type === 'deactivate'} 
+                onOpenChange={(open) => !open && setActionDialog({ isOpen: false, type: null, sim: null })}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Deactivate SIM Card</DialogTitle>
+                    <DialogDescription>
+                      {actionDialog.sim?.status === 'GRACE_PERIOD' ? (
+                        <>
+                          <AlertTriangle className="inline-block w-4 h-4 mr-1 text-red-600" />
+                          <span className="font-semibold">Grace Period Deactivation (Manual Admin Action)</span>
+                          <p className="mt-2 text-sm">
+                            SIM Card ini telah berada di Grace Period selama{' '}
+                            <strong>{actionDialog.sim?.grace_period_start_date ? getGracePeriodStatus(actionDialog.sim).daysInGracePeriod : 0} hari</strong>.
+                          </p>
+                          <p className="mt-1 text-sm">
+                            Dengan men-deactivate SIM Card ini, status akan berubah menjadi <strong>DEACTIVATED</strong> dan SIM tidak dapat digunakan lagi.
+                          </p>
+                          {actionDialog.sim?.grace_period_start_date && getGracePeriodStatus(actionDialog.sim).exceedsMaxDuration && (
+                            <p className="mt-2 text-xs text-red-600 font-semibold bg-red-50 dark:bg-red-950/20 p-2 rounded border border-red-200">
+                              ⚠️ SIM ini sudah melewati batas maksimal 30 hari grace period. Segera lakukan deactivation!
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          Are you sure you want to deactivate this SIM card? This action will change the status to DEACTIVATED.
+                        </>
+                      )}
+                    </DialogDescription>
+                  </DialogHeader>
+                </DialogContent>
+              </Dialog>
+
               {actionDialog.type === "deactivate" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -1193,46 +1283,69 @@ export default function SimCardsPage() {
                         <TableRow key={sim.id}>
                           {/* Column 1: Status Badge */}
                           <TableCell>
-                            <div className="space-y-2">
-                              <Badge
-                                className={STATUS_COLORS[sim.status]}
-                              >
-                                {STATUS_ICONS[sim.status] && (
-                                  <span className="mr-1">
-                                    {STATUS_ICONS[sim.status]}
-                                  </span>
-                                )}
-                                {sim.status === "GRACE_PERIOD"
-                                  ? "Grace Period"
-                                  : sim.status}
-                              </Badge>
-                              {sim.status === "GRACE_PERIOD" &&
-                                sim.grace_period_due_date && (
-                                  <div className="text-xs space-y-1">
-                                    <div
-                                      className={`font-medium ${daysColor}`}
-                                    >
-                                      Overdue: {daysOverdue} hari
-                                    </div>
-                                    <div className="text-muted-foreground">
-                                      Due:{" "}
-                                      {new Date(
-                                        sim.grace_period_due_date
-                                      ).toLocaleDateString("id-ID")}
-                                    </div>
-                                    <div
-                                      className={`font-semibold ${costColor}`}
-                                    >
-                                      Biaya:{" "}
-                                      {new Intl.NumberFormat("id-ID", {
-                                        style: "currency",
-                                        currency: "IDR",
-                                        minimumFractionDigits: 0,
-                                      }).format(graceCost.gracePeriodCost)}
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
+                            {(() => {
+                              const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+                                WAREHOUSE: "secondary",
+                                ACTIVATED: "default",
+                                INSTALLED: "default",
+                                BILLING: "default",
+                                GRACE_PERIOD: "destructive",
+                                DEACTIVATED: "outline"
+                              };
+
+                              // Calculate grace period status
+                              const graceStatus = sim.status === 'GRACE_PERIOD' 
+                                ? getGracePeriodStatus(sim) 
+                                : null;
+
+                              return (
+                                <div className="flex flex-col gap-1">
+                                  <Badge
+                                    className={STATUS_COLORS[sim.status]}
+                                  >
+                                    {STATUS_ICONS[sim.status] && (
+                                      <span className="mr-1">
+                                        {STATUS_ICONS[sim.status]}
+                                      </span>
+                                    )}
+                                    {sim.status === "GRACE_PERIOD"
+                                      ? "Grace Period"
+                                      : sim.status}
+                                  </Badge>
+                                  {sim.status === "GRACE_PERIOD" &&
+                                    sim.grace_period_due_date && (
+                                      <div className="text-xs space-y-1">
+                                        <div
+                                          className={`font-medium ${daysColor}`}
+                                        >
+                                          Overdue: {daysOverdue} hari
+                                        </div>
+                                        <div className="text-muted-foreground">
+                                          Due:{" "}
+                                          {new Date(
+                                            sim.grace_period_due_date
+                                          ).toLocaleDateString("id-ID")}
+                                        </div>
+                                        <div
+                                          className={`font-semibold ${costColor}`}
+                                        >
+                                          Biaya:{" "}
+                                          {new Intl.NumberFormat("id-ID", {
+                                            style: "currency",
+                                            currency: "IDR",
+                                            minimumFractionDigits: 0,
+                                          }).format(graceCost.gracePeriodCost)}
+                                        </div>
+                                        {graceStatus?.exceedsMaxDuration && (
+                                          <div className="text-xs text-red-600">
+                                            ⚠️ Overdue grace period
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
 
                           {/* Column 2: No SIM Card (Phone Number) */}

@@ -235,10 +235,12 @@ export type Database = {
           accumulated_cost: number | null
           activation_date: string | null
           billing_cycle_day: number | null
+          billing_cycle_source: string | null
           created_at: string | null
           current_imei: string | null
           deactivation_date: string | null
           deactivation_reason: string | null
+          free_pulsa: number | null
           free_pulsa_months: number | null
           grace_period_due_date: string | null
           grace_period_start_date: string | null
@@ -259,10 +261,12 @@ export type Database = {
           accumulated_cost?: number | null
           activation_date?: string | null
           billing_cycle_day?: number | null
+          billing_cycle_source?: string | null
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
           deactivation_reason?: string | null
+          free_pulsa?: number | null
           free_pulsa_months?: number | null
           grace_period_due_date?: string | null
           grace_period_start_date?: string | null
@@ -283,10 +287,12 @@ export type Database = {
           accumulated_cost?: number | null
           activation_date?: string | null
           billing_cycle_day?: number | null
+          billing_cycle_source?: string | null
           created_at?: string | null
           current_imei?: string | null
           deactivation_date?: string | null
           deactivation_reason?: string | null
+          free_pulsa?: number | null
           free_pulsa_months?: number | null
           grace_period_due_date?: string | null
           grace_period_start_date?: string | null
