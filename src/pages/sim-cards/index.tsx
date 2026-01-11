@@ -34,6 +34,11 @@ import { simService } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
 import Link from "next/link";
 import { ExcelImport } from "@/components/ExcelImport";
+import { calculateGracePeriodCost } from "@/services/simService";
+import { useRouter } from "next/router";
+
+// Helper function
+const getTodayDate = () => new Date().toISOString().split("T")[0];
 
 const STATUS_COLORS: Record<SimStatus, string> = {
   WAREHOUSE: "bg-gray-500",
@@ -42,6 +47,15 @@ const STATUS_COLORS: Record<SimStatus, string> = {
   BILLING: "bg-purple-500",
   GRACE_PERIOD: "bg-yellow-500",
   DEACTIVATED: "bg-red-500"
+};
+
+const STATUS_ICONS: Record<SimStatus, React.ReactNode> = {
+  WAREHOUSE: <Package className="h-4 w-4" />,
+  ACTIVATED: <PlayCircle className="h-4 w-4" />,
+  INSTALLED: <CheckCircle2 className="h-4 w-4" />,
+  BILLING: <AlertCircle className="h-4 w-4" />,
+  GRACE_PERIOD: <AlertCircle className="h-4 w-4" />,
+  DEACTIVATED: <XCircle className="h-4 w-4" />
 };
 
 type ActionType = "activate" | "install" | "grace_period" | "reactivate" | "deactivate" | null;
@@ -54,6 +68,7 @@ export default function SimCardsPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   // Action Dialog State
   const [actionDialog, setActionDialog] = useState<{
@@ -73,6 +88,13 @@ export default function SimCardsPage() {
     imei: ""
   });
 
+  // Installation Form State
+  const [installationDate, setInstallationDate] = useState(getTodayDate());
+  const [imei, setImei] = useState("");
+  const [freePulsaMonths, setFreePulsaMonths] = useState<number>(0);
+  const [billingCycleOption, setBillingCycleOption] = useState<"existing" | "installation" | "custom">("existing");
+  const [customBillingDay, setCustomBillingDay] = useState<number>(1);
+
   // Form State for Add SIM
   const [formData, setFormData] = useState({
     phone_number: "",
@@ -88,6 +110,9 @@ export default function SimCardsPage() {
     deactivation_date: "",
     deactivation_reason: ""
   });
+
+  const [selectedSim, setSelectedSim] = useState<SimCard | null>(null);
+  const [activationDate, setActivationDate] = useState(getTodayDate());
 
   useEffect(() => {
     loadSimCards();
@@ -193,6 +218,13 @@ export default function SimCardsPage() {
       type,
       sim
     });
+    // Reset specific form states
+    setInstallationDate(getTodayDate());
+    setImei(sim.current_imei || "");
+    setFreePulsaMonths(0);
+    setBillingCycleOption("existing");
+    setCustomBillingDay(1);
+    
     setActionFormData({
       date: new Date().toISOString().split("T")[0],
       dueDate: "",
@@ -227,11 +259,29 @@ export default function SimCardsPage() {
           break;
 
         case "install":
-          if (!actionFormData.imei) {
-            alert("IMEI wajib diisi untuk instalasi!");
+          if (!imei.trim()) {
+            alert("IMEI device wajib diisi untuk instalasi!");
             return;
           }
-          await simService.installSimCard(simId, actionFormData.imei, actionFormData.date);
+
+          // Determine billing cycle day based on selected option
+          let billingCycleDay: number | undefined = undefined;
+          let useInstallationAsBilling = false;
+          
+          if (billingCycleOption === "installation") {
+            useInstallationAsBilling = true;
+          } else if (billingCycleOption === "custom") {
+            billingCycleDay = customBillingDay;
+          }
+          
+          await simService.installSimCard(
+            simId, 
+            installationDate, 
+            imei.trim(), 
+            freePulsaMonths,
+            useInstallationAsBilling,
+            billingCycleDay
+          );
           break;
 
         case "grace_period":
@@ -239,6 +289,18 @@ export default function SimCardsPage() {
             alert("Batas Bayar Langganan Pulsa wajib diisi!");
             return;
           }
+          
+          // VALIDATION: Grace period date must be after activation date
+          if (actionDialog.sim.activation_date) {
+            const activationDate = new Date(actionDialog.sim.activation_date);
+            const gracePeriodDate = new Date(actionFormData.date);
+            
+            if (gracePeriodDate < activationDate) {
+              alert("Tanggal Grace Period tidak boleh sebelum tanggal aktivasi!");
+              return;
+            }
+          }
+          
           await simService.enterGracePeriod(
             simId,
             actionFormData.date,
@@ -761,26 +823,132 @@ export default function SimCardsPage() {
                 {actionDialog.type === "install" && (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="install_date">Tanggal Instalasi</Label>
+                      <Label htmlFor="install-date">Tanggal Instalasi</Label>
                       <Input
-                        id="install_date"
+                        id="install-date"
                         type="date"
-                        value={actionFormData.date}
-                        onChange={(e) => setActionFormData({...actionFormData, date: e.target.value})}
+                        value={installationDate}
+                        onChange={(e) => setInstallationDate(e.target.value)}
+                        max={getTodayDate()}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>Billing Cycle Reference</Label>
+                      <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
+                        {/* Option 1: Existing Billing Cycle */}
+                        <div className="flex items-start space-x-3">
+                          <input
+                            type="radio"
+                            id="billing-existing"
+                            name="billing-cycle"
+                            value="existing"
+                            checked={billingCycleOption === "existing"}
+                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
+                            className="mt-1 h-4 w-4 cursor-pointer"
+                          />
+                          <label htmlFor="billing-existing" className="flex-1 cursor-pointer">
+                            <div className="font-medium">Use Existing Billing Cycle Day</div>
+                            <div className="text-sm text-muted-foreground">
+                              Gunakan tanggal billing cycle yang sudah ada di sistem
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Option 2: Installation Date */}
+                        <div className="flex items-start space-x-3">
+                          <input
+                            type="radio"
+                            id="billing-installation"
+                            name="billing-cycle"
+                            value="installation"
+                            checked={billingCycleOption === "installation"}
+                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
+                            className="mt-1 h-4 w-4 cursor-pointer"
+                          />
+                          <label htmlFor="billing-installation" className="flex-1 cursor-pointer">
+                            <div className="font-medium">Use Installation Date as Billing Day</div>
+                            <div className="text-sm text-muted-foreground">
+                              Tanggal instalasi akan menjadi billing cycle day (Day {new Date(installationDate).getDate()})
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Option 3: Custom Billing Day */}
+                        <div className="flex items-start space-x-3">
+                          <input
+                            type="radio"
+                            id="billing-custom"
+                            name="billing-cycle"
+                            value="custom"
+                            checked={billingCycleOption === "custom"}
+                            onChange={(e) => setBillingCycleOption(e.target.value as "existing" | "installation" | "custom")}
+                            className="mt-1 h-4 w-4 cursor-pointer"
+                          />
+                          <label htmlFor="billing-custom" className="flex-1 cursor-pointer">
+                            <div className="font-medium">Set Custom Billing Day</div>
+                            <div className="text-sm text-muted-foreground">
+                              Tentukan sendiri tanggal billing cycle (1-31)
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Conditional Input for Custom Day */}
+                        {billingCycleOption === "custom" && (
+                          <div className="ml-7 mt-2 space-y-2 border-l-2 border-primary pl-4">
+                            <Label htmlFor="custom-billing-day" className="text-sm">
+                              Billing Day (1-31)
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                id="custom-billing-day"
+                                type="number"
+                                min="1"
+                                max="31"
+                                value={customBillingDay}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  if (val >= 1 && val <= 31) {
+                                    setCustomBillingDay(val);
+                                  }
+                                }}
+                                className="w-24"
+                              />
+                              <span className="text-sm text-muted-foreground">
+                                Every month on day {customBillingDay}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              💡 Tip: Pilih tanggal 1-28 untuk konsistensi di semua bulan
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="imei">IMEI Device</Label>
+                      <Input
+                        id="imei"
+                        type="text"
+                        value={imei}
+                        onChange={(e) => setImei(e.target.value)}
+                        placeholder="Enter device IMEI"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="imei">IMEI Device *</Label>
+                      <Label htmlFor="free-pulsa">Free Pulsa (months)</Label>
                       <Input
-                        id="imei"
-                        placeholder="123456789012345"
-                        value={actionFormData.imei}
-                        onChange={(e) => setActionFormData({...actionFormData, imei: e.target.value})}
-                        required
+                        id="free-pulsa"
+                        type="number"
+                        min="0"
+                        value={freePulsaMonths}
+                        onChange={(e) => setFreePulsaMonths(parseInt(e.target.value) || 0)}
+                        placeholder="0"
                       />
                       <p className="text-xs text-muted-foreground">
-                        IMEI device tempat kartu SIM diinstall. Status akan berubah dari ACTIVATED → INSTALLED
+                        Jumlah bulan yang mendapat free pulsa
                       </p>
                     </div>
                   </>
@@ -921,157 +1089,225 @@ export default function SimCardsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>No SIM Card</TableHead>
-                      <TableHead>ICCID</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Plan</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>IMEI</TableHead>
-                      <TableHead>Biaya Bulanan</TableHead>
-                      <TableHead>Akumulasi Biaya</TableHead>
+                      <TableHead>No SIM Card</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Current IMEI</TableHead>
+                      <TableHead>Monthly Cost</TableHead>
                       <TableHead className="text-right">Quick Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredSims.map((sim) => {
-                      const daysOverdue = calculateDaysOverdue(sim.grace_period_start_date);
-                      const colorClass = daysOverdue !== null ? getDaysColorClass(daysOverdue) : "";
+                      const daysOverdue =
+                        sim.status === "GRACE_PERIOD" &&
+                        sim.grace_period_due_date
+                          ? Math.floor(
+                              (new Date().getTime() -
+                                new Date(
+                                  sim.grace_period_due_date
+                                ).getTime()) /
+                                (1000 * 60 * 60 * 24)
+                            )
+                          : 0;
+
+                      const graceCost = calculateGracePeriodCost(sim);
+
+                      const daysColor =
+                        daysOverdue <= 5
+                          ? "text-green-600"
+                          : daysOverdue <= 10
+                            ? "text-yellow-600"
+                            : "text-red-600";
+
+                      const costColor =
+                        daysOverdue <= 5
+                          ? "text-green-600"
+                          : daysOverdue <= 10
+                            ? "text-yellow-600"
+                            : "text-red-600";
 
                       return (
                         <TableRow key={sim.id}>
-                          <TableCell className="font-mono text-sm font-medium">
-                            {sim.phone_number}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm text-muted-foreground">
-                            {sim.iccid || "-"}
-                          </TableCell>
-                          <TableCell>{sim.provider}</TableCell>
-                          <TableCell>{sim.plan_name || "-"}</TableCell>
+                          {/* Column 1: Status Badge */}
                           <TableCell>
-                            <div className="space-y-1">
-                              <Badge className={`${STATUS_COLORS[sim.status]} text-white`}>
-                                {sim.status}
+                            <div className="space-y-2">
+                              <Badge
+                                className={STATUS_COLORS[sim.status]}
+                              >
+                                {STATUS_ICONS[sim.status] && (
+                                  <span className="mr-1">
+                                    {STATUS_ICONS[sim.status]}
+                                  </span>
+                                )}
+                                {sim.status === "GRACE_PERIOD"
+                                  ? "Grace Period"
+                                  : sim.status}
                               </Badge>
-                              
-                              {sim.status === "GRACE_PERIOD" && daysOverdue !== null && (
-                                <div className="text-xs font-medium space-y-1">
-                                  <div className={colorClass}>
-                                    Overdue: {daysOverdue} hari
-                                  </div>
-                                  {sim.grace_period_due_date && (
-                                    <div className="text-gray-500">
-                                      Due: {sim.grace_period_due_date}
+                              {sim.status === "GRACE_PERIOD" &&
+                                sim.grace_period_due_date && (
+                                  <div className="text-xs space-y-1">
+                                    <div
+                                      className={`font-medium ${daysColor}`}
+                                    >
+                                      Overdue: {daysOverdue} hari
                                     </div>
-                                  )}
-                                </div>
-                              )}
+                                    <div className="text-muted-foreground">
+                                      Due:{" "}
+                                      {new Date(
+                                        sim.grace_period_due_date
+                                      ).toLocaleDateString("id-ID")}
+                                    </div>
+                                    <div
+                                      className={`font-semibold ${costColor}`}
+                                    >
+                                      Biaya:{" "}
+                                      {new Intl.NumberFormat("id-ID", {
+                                        style: "currency",
+                                        currency: "IDR",
+                                        minimumFractionDigits: 0,
+                                      }).format(graceCost.gracePeriodCost)}
+                                    </div>
+                                  </div>
+                                )}
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-sm">
-                            {sim.current_imei || "-"}
+
+                          {/* Column 2: No SIM Card (Phone Number) */}
+                          <TableCell>
+                            <span className="font-medium">
+                              {sim.phone_number}
+                            </span>
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {formatCurrency(sim.monthly_cost)}
+
+                          {/* Column 3: Provider */}
+                          <TableCell>{sim.provider}</TableCell>
+
+                          {/* Column 4: Current IMEI */}
+                          <TableCell>
+                            {sim.current_imei ? (
+                              <span className="font-mono text-xs">
+                                {sim.current_imei}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground italic text-sm">
+                                Not assigned
+                              </span>
+                            )}
                           </TableCell>
-                          <TableCell className="font-bold text-primary">
-                            {formatCurrency(sim.accumulated_cost)}
+
+                          {/* Column 5: Monthly Cost */}
+                          <TableCell>
+                            {new Intl.NumberFormat("id-ID", {
+                              style: "currency",
+                              currency: "IDR",
+                              minimumFractionDigits: 0,
+                            }).format(sim.monthly_cost || 0)}
                           </TableCell>
+
+                          {/* Column 6: Quick Actions */}
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* WAREHOUSE: Activate Button */}
+                            <div className="flex gap-2 justify-end">
                               {sim.status === "WAREHOUSE" && (
                                 <Button
-                                  variant="outline"
                                   size="sm"
-                                  onClick={() => openActionDialog("activate", sim)}
-                                  className="h-8 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                  variant="outline"
+                                  className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                                  onClick={() =>
+                                    openActionDialog("activate", sim)
+                                  }
                                 >
-                                  <PlayCircle className="h-3 w-3 mr-1" />
+                                  <PlayCircle className="h-4 w-4 mr-1" />
                                   Activate
                                 </Button>
                               )}
-
-                              {/* ACTIVATED: Install Button */}
                               {sim.status === "ACTIVATED" && (
                                 <Button
-                                  variant="outline"
                                   size="sm"
-                                  onClick={() => openActionDialog("install", sim)}
-                                  className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() =>
+                                    openActionDialog("install", sim)
+                                  }
                                 >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Install
                                 </Button>
                               )}
-
-                              {/* INSTALLED: Grace Period & Deactivate Buttons */}
                               {sim.status === "INSTALLED" && (
                                 <>
                                   <Button
-                                    variant="outline"
                                     size="sm"
-                                    onClick={() => openActionDialog("grace_period", sim)}
-                                    className="h-8 text-orange-600 border-orange-200 hover:bg-orange-50"
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-600 hover:bg-orange-50"
+                                    onClick={() =>
+                                      openActionDialog("grace_period", sim)
+                                    }
                                   >
-                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                    <AlertCircle className="h-4 w-4 mr-1" />
                                     Grace Period
                                   </Button>
                                   <Button
-                                    variant="outline"
                                     size="sm"
-                                    onClick={() => openActionDialog("deactivate", sim)}
-                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                    variant="outline"
+                                    className="text-red-600 border-red-600 hover:bg-red-50"
+                                    onClick={() =>
+                                      openActionDialog("deactivate", sim)
+                                    }
                                   >
-                                    <XCircle className="h-3 w-3 mr-1" />
+                                    <XCircle className="h-4 w-4 mr-1" />
                                     Deactivate
                                   </Button>
                                 </>
                               )}
-
-                              {/* GRACE_PERIOD: Reactivate & Deactivate Buttons */}
                               {sim.status === "GRACE_PERIOD" && (
                                 <>
                                   <Button
-                                    variant="outline"
                                     size="sm"
-                                    onClick={() => openActionDialog("reactivate", sim)}
-                                    className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                    variant="outline"
+                                    className="text-green-600 border-green-600 hover:bg-green-50"
+                                    onClick={() =>
+                                      openActionDialog("reactivate", sim)
+                                    }
                                   >
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
                                     Reaktivasi
                                   </Button>
                                   <Button
-                                    variant="outline"
                                     size="sm"
-                                    onClick={() => openActionDialog("deactivate", sim)}
-                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                    variant="outline"
+                                    className="text-red-600 border-red-600 hover:bg-red-50"
+                                    onClick={() =>
+                                      openActionDialog("deactivate", sim)
+                                    }
                                   >
-                                    <XCircle className="h-3 w-3 mr-1" />
+                                    <XCircle className="h-4 w-4 mr-1" />
                                     Non-Aktifkan
                                   </Button>
                                 </>
                               )}
-
-                              {/* DEACTIVATED: Reactivate Button */}
                               {sim.status === "DEACTIVATED" && (
                                 <Button
-                                  variant="outline"
                                   size="sm"
-                                  onClick={() => openActionDialog("reactivate", sim)}
-                                  className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                                  variant="outline"
+                                  className="text-green-600 border-green-600 hover:bg-green-50"
+                                  onClick={() =>
+                                    openActionDialog("reactivate", sim)
+                                  }
                                 >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  <CheckCircle2 className="h-4 w-4 mr-1" />
                                   Reaktivasi
                                 </Button>
                               )}
-
-                              {/* Detail Button (always visible) */}
-                              <Link href={`/sim-cards/${sim.id}`}>
-                                <Button variant="ghost" size="sm">
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Detail
-                                </Button>
-                              </Link>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  router.push(`/sim-cards/${sim.id}`)
+                                }
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>

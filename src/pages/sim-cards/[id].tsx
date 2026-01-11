@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { simService, calculateDailyBurden } from "@/services/simService";
+import { simService, calculateDailyBurden, calculateGracePeriodCost } from "@/services/simService";
 import { SimCard, DailyBurdenLog } from "@/lib/supabase";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -412,6 +412,57 @@ export default function SimCardDetailPage() {
                     </p>
                   )}
                 </div>
+
+                {/* Grace Period Cost */}
+                {simCard.status === 'GRACE_PERIOD' && simCard.grace_period_start_date && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                        <h4 className="font-semibold">Biaya Grace Period (Overdue)</h4>
+                      </div>
+                      <div className="pl-4 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Periode:</span>
+                          <span className="font-medium">
+                            {formatDate(simCard.grace_period_start_date)} s/d Sekarang
+                          </span>
+                        </div>
+                        {simCard.grace_period_due_date && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Batas Bayar:</span>
+                            <span className="font-medium">{formatDate(simCard.grace_period_due_date)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Jumlah Hari Overdue:</span>
+                          <span className="font-medium">{(() => {
+                            const graceCost = calculateGracePeriodCost(simCard);
+                            return graceCost.gracePeriodDays;
+                          })()} hari</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Tarif Harian:</span>
+                          <span className="font-medium">{formatCurrency(dailyRate)}</span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t">
+                          <span className="font-semibold">Total Biaya Grace Period:</span>
+                          <span className="font-bold text-yellow-600">{formatCurrency((() => {
+                            const graceCost = calculateGracePeriodCost(simCard);
+                            return graceCost.gracePeriodCost;
+                          })())}</span>
+                        </div>
+                        <div className="bg-yellow-50 border border-yellow-200 p-2 rounded mt-2">
+                          <p className="text-xs text-yellow-800">
+                            <AlertCircle className="inline h-3 w-3 mr-1" />
+                            Biaya ini akan ditambahkan ke akumulasi total saat SIM di-non-aktifkan
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 

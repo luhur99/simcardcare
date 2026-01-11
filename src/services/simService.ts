@@ -84,23 +84,23 @@ export function calculateGracePeriodCost(sim: SimCard): {
   gracePeriodDays: number;
   gracePeriodCost: number;
 } {
-  if (sim.status !== 'GRACE_PERIOD' || !sim.installation_date) {
+  if (sim.status !== 'GRACE_PERIOD' || !sim.grace_period_start_date) {
     return { gracePeriodDays: 0, gracePeriodCost: 0 };
   }
 
   const now = new Date();
-  const installDate = new Date(sim.installation_date);
+  const startDate = new Date(sim.grace_period_start_date);
   const monthlyRate = sim.monthly_cost || 0;
   const dailyRate = monthlyRate / 30;
 
-  // Grace period = dari installation sampai sekarang (atau deactivation date)
+  // Grace period cost = dari start date sampai sekarang (atau deactivation date)
   const endDate = sim.deactivation_date ? new Date(sim.deactivation_date) : now;
-  const gracePeriodDays = Math.floor((endDate.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
+  const gracePeriodDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
   const gracePeriodCost = gracePeriodDays * dailyRate;
 
   return {
-    gracePeriodDays,
-    gracePeriodCost
+    gracePeriodDays: Math.max(0, gracePeriodDays),
+    gracePeriodCost: Math.max(0, gracePeriodCost)
   };
 }
 
@@ -506,53 +506,51 @@ export const simService = {
     });
   },
 
-  async installSimCard(id: string, installationDate: string, imei: string, freePulsaMonths?: number): Promise<SimCard> {
-    // REPLACEMENT LOGIC: Check for existing active SIM on this IMEI
-    if (isSupabaseConnected()) {
-      const { data: existingSims } = await supabase
-        .from('sim_cards')
-        .select('*')
-        .eq('current_imei', imei)
-        .neq('status', 'DEACTIVATED')
-        .neq('id', id); // Exclude self if already assigned
-
-      if (existingSims && existingSims.length > 0) {
-        const oldSim = existingSims[0];
-        console.log(`Replacement detected: Deactivating old SIM ${oldSim.iccid} for IMEI ${imei}`);
-        
-        // Deactivate the old SIM
-        await this.deactivateSimCard(
-          oldSim.id, 
-          installationDate, 
-          "Auto-deactivated due to SIM Replacement",
-          "SIM_REPLACED"
-        );
-      }
-    } else {
-      // Mock logic for replacement
-      const sims = JSON.parse(getLocalStorage(STORAGE_KEYS.SIMS) || '[]');
-      const conflict = sims.find((s: SimCard) => 
-        s.current_imei === imei && 
-        s.status !== 'DEACTIVATED' && 
-        s.id !== id
-      );
-      
-      if (conflict) {
-        console.log(`Mock Replacement: Deactivating old SIM ${conflict.iccid}`);
-        await this.deactivateSimCard(
-          conflict.id, 
-          installationDate, 
-          "Auto-deactivated due to SIM Replacement",
-          "SIM_REPLACED"
-        );
-      }
+  async installSimCard(
+    id: string,
+    installationDate: string,
+    imei: string,
+    freePulsaMonths?: number,
+    useInstallationAsBillingCycle?: boolean,
+    customBillingDay?: number
+  ): Promise<SimCard> {
+    // Handle SIM replacement - free up old IMEI
+    const allSims = await this.getSimCards();
+    const existingSim = allSims.find(s => s.current_imei === imei && s.id !== id && s.status !== 'DEACTIVATED');
+    
+    if (existingSim) {
+      throw new Error('IMEI ini sudah terikat dengan kartu aktif lain!');
     }
+
+    const oldSimWithImei = allSims.find(s => s.current_imei === imei && s.id !== id);
+    if (oldSimWithImei) {
+      await this.updateSimCard(oldSimWithImei.id, {
+        current_imei: null,
+        installation_date: null,
+        status: 'ACTIVATED'
+      });
+    }
+
+    // Calculate billing_cycle_day based on selected option
+    let billingCycleDay: number | null = null;
+    
+    if (customBillingDay !== undefined) {
+      // Option 3: Custom billing day
+      billingCycleDay = customBillingDay;
+    } else if (useInstallationAsBillingCycle) {
+      // Option 2: Use installation date's day as billing cycle
+      const installDate = new Date(installationDate);
+      billingCycleDay = installDate.getDate();
+    }
+    // Option 1: Keep existing billing_cycle_day (null if not set)
 
     return this.updateSimCard(id, {
       status: 'INSTALLED',
       installation_date: installationDate,
       current_imei: imei,
-      free_pulsa_months: freePulsaMonths
+      free_pulsa_months: freePulsaMonths,
+      billing_cycle_day: billingCycleDay,
+      use_installation_as_billing_cycle: useInstallationAsBillingCycle || false
     });
   },
 
