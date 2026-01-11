@@ -71,7 +71,7 @@ export default function ExecutiveSummary() {
   const overlapCards = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
 
     const cards: OverlapSimCard[] = [];
 
@@ -109,7 +109,7 @@ export default function ExecutiveSummary() {
   const potentialLossCards = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
 
     const cards: PotentialLossSimCard[] = [];
 
@@ -164,7 +164,7 @@ export default function ExecutiveSummary() {
   const freePulsaCosts = useMemo(() => {
     const [year, month] = selectedMonth.split("-").map(Number);
     const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
 
     const costs: Array<{
       phoneNumber: string;
