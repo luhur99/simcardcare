@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, Download, TrendingDown, Ghost, DollarSign, Calendar } from "lucide-react";
+import { AlertTriangle, Download, TrendingDown, DollarSign, Calendar, Ghost } from "lucide-react";
 import { simService, calculateDailyBurden } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
 
