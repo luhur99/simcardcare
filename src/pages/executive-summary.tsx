@@ -110,6 +110,7 @@ export default function ExecutiveSummary() {
     const [year, month] = selectedMonth.split("-").map(Number);
     const monthStart = new Date(year, month - 1, 1);
     const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    const now = new Date();
 
     const cards: PotentialLossSimCard[] = [];
 
@@ -121,14 +122,13 @@ export default function ExecutiveSummary() {
       // Grace Period SIMs
       if (sim.status === "GRACE_PERIOD" && sim.grace_period_start_date) {
         const graceStartDate = new Date(sim.grace_period_start_date);
-        const now = new Date();
         
         // Calculate overlap between grace period and selected month
-        const overlapStart = graceStartDate > monthStart ? graceStartDate : monthStart;
-        const overlapEnd = now < monthEnd ? now : monthEnd;
+        const overlapStart = graceStartDate.getTime() > monthStart.getTime() ? graceStartDate : monthStart;
+        const overlapEnd = now.getTime() < monthEnd.getTime() ? now : monthEnd;
         
         // Only include if there's overlap with selected month
-        if (overlapStart <= overlapEnd && graceStartDate <= monthEnd) {
+        if (overlapStart.getTime() <= overlapEnd.getTime() && graceStartDate.getTime() <= monthEnd.getTime()) {
           days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
@@ -139,14 +139,13 @@ export default function ExecutiveSummary() {
       // Ghost SIM (ACTIVATED but not INSTALLED)
       if (sim.status === "ACTIVATED" && !sim.installation_date && sim.activation_date) {
         const activationDate = new Date(sim.activation_date);
-        const now = new Date();
         
         // Calculate overlap between ghost period and selected month
-        const overlapStart = activationDate > monthStart ? activationDate : monthStart;
-        const overlapEnd = now < monthEnd ? now : monthEnd;
+        const overlapStart = activationDate.getTime() > monthStart.getTime() ? activationDate : monthStart;
+        const overlapEnd = now.getTime() < monthEnd.getTime() ? now : monthEnd;
         
         // Only include if there's overlap with selected month
-        if (overlapStart <= overlapEnd && activationDate <= monthEnd) {
+        if (overlapStart.getTime() <= overlapEnd.getTime() && activationDate.getTime() <= monthEnd.getTime()) {
           days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
