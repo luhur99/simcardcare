@@ -125,6 +125,11 @@ export function Layout({ children }: LayoutProps) {
                         </Link>
                       ))}
                     </div>
+
+                    {/* Theme Toggle - Mobile */}
+                    <div className="pt-4 border-t border-border">
+                      <ThemeSwitch />
+                    </div>
                   </SheetContent>
                 </Sheet>
 
