@@ -934,6 +934,33 @@ export default function SimCardsPage() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="purchase_date" className="text-right">
+                Tanggal Pembelian
+              </Label>
+              <Input
+                id="purchase_date"
+                type="date"
+                value={formData.purchase_date}
+                onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="billing_cycle_day" className="text-right">
+                Billing Cycle Day
+              </Label>
+              <Input
+                id="billing_cycle_day"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="1-31"
+                value={formData.billing_cycle_day}
+                onChange={(e) => setFormData({ ...formData, billing_cycle_day: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="cost" className="text-right">
                 Monthly Cost
               </Label>
