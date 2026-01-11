@@ -37,6 +37,7 @@ import Link from "next/link";
 import { ExcelImport } from "@/components/ExcelImport";
 import { calculateGracePeriodCost } from "@/services/simService";
 import { useRouter } from "next/router";
+import { providerService } from "@/services/providerService";
 
 // Helper function
 const getTodayDate = () => new Date().toISOString().split("T")[0];
@@ -92,13 +93,17 @@ export default function SimCardsPage() {
   // Installation Form State
   const [installationDate, setInstallationDate] = useState(getTodayDate());
   const [imei, setImei] = useState("");
-  const [freePulsaMonths, setFreePulsaMonths] = useState<number>(0);
+  const [freeMonths, setFreeMonths] = useState<number>(0);
   const [billingCycleOption, setBillingCycleOption] = useState<"existing" | "installation" | "custom">("existing");
   const [customBillingDay, setCustomBillingDay] = useState<number>(1);
   const [billingCycleReference, setBillingCycleReference] = useState<"existing" | "installation" | "custom">("existing");
   const [selectedImei, setSelectedImei] = useState("");
   const [freePulsa, setFreePulsa] = useState("0");
+  const [freeMonths, setFreeMonths] = useState<number>(0);
   const [reactivationDate, setReactivationDate] = useState(getTodayDate());
+  
+  // Provider data for billing cycle reference
+  const [providerBillingDay, setProviderBillingDay] = useState<number | null>(null);
   
   // Other Action States
   const [gracePeriodDate, setGracePeriodDate] = useState(getTodayDate());
@@ -222,6 +227,46 @@ export default function SimCardsPage() {
     });
   };
 
+  const closeActionDialog = () => {
+    setActionDialog({
+      isOpen: false,
+      type: null,
+      sim: null
+    });
+    setActionFormData({
+      date: new Date().toISOString().split("T")[0],
+      dueDate: "",
+      reason: "",
+      imei: ""
+    });
+  };
+
+  // Fetch provider billing cycle
+  const fetchProviderBillingCycle = async (providerName: string) => {
+    try {
+      const providers = await providerService.getProviders();
+      const provider = providers.find(p => p.name === providerName);
+      setProviderBillingDay(provider?.billing_cycle_day || null);
+    } catch (error) {
+      console.error("Error fetching provider:", error);
+      setProviderBillingDay(null);
+    }
+  };
+
+  // Validate IMEI uniqueness
+  const validateImeiUnique = async (imei: string, currentSimId: string): Promise<boolean> => {
+    if (!imei.trim()) return true; // Empty IMEI is allowed for validation
+    
+    const allSims = await simService.getSimCards();
+    const conflict = allSims.find(s => 
+      s.id !== currentSimId && 
+      s.current_imei === imei && 
+      s.status !== 'DEACTIVATED'
+    );
+    
+    return !conflict;
+  };
+
   const openActionDialog = (sim: SimCard, action: ActionType) => {
     setActionDialog({
       isOpen: true,
@@ -234,9 +279,16 @@ export default function SimCardsPage() {
     } else if (action === "install") {
       setInstallationDate(getTodayDate());
       setSelectedImei("");
-      setFreePulsa("0");
+      setFreeMonths(0);
       setBillingCycleReference("existing");
       setCustomBillingDay(sim.billing_cycle_day || 1);
+      
+      // Fetch provider data to get billing cycle
+      if (sim.provider) {
+        fetchProviderBillingCycle(sim.provider);
+      } else {
+        setProviderBillingDay(null);
+      }
     } else if (action === "grace_period") {
       // ⭐ NEW: Auto-use existing billing cycle, no form needed
       if (sim.billing_cycle_day) {
@@ -267,20 +319,6 @@ export default function SimCardsPage() {
     }
   };
 
-  const closeActionDialog = () => {
-    setActionDialog({
-      isOpen: false,
-      type: null,
-      sim: null
-    });
-    setActionFormData({
-      date: new Date().toISOString().split("T")[0],
-      dueDate: "",
-      reason: "",
-      imei: ""
-    });
-  };
-
   const handleActionSubmit = async () => {
     try {
       if (!actionDialog.sim) return;
@@ -291,16 +329,28 @@ export default function SimCardsPage() {
           activation_date: activationDate,
         });
       } else if (actionDialog.type === "install") {
+        // ⭐ Validate IMEI uniqueness
+        if (!selectedImei.trim()) {
+          alert("IMEI device wajib diisi!");
+          return;
+        }
+
+        const isUnique = await validateImeiUnique(selectedImei, actionDialog.sim.id);
+        if (!isUnique) {
+          alert("❌ IMEI ini sudah terikat dengan kartu aktif lain! Silakan gunakan IMEI yang berbeda.");
+          return;
+        }
+
         // ⭐ Validate billing cycle is set
         let finalBillingDay: number;
         let billingSource: "provider" | "installation" | "custom";
 
         if (billingCycleReference === "existing") {
-          if (!actionDialog.sim.billing_cycle_day) {
+          if (!actionDialog.sim.billing_cycle_day && !providerBillingDay) {
             alert("Billing cycle belum diset! Pilih Installation Date atau Custom.");
             return;
           }
-          finalBillingDay = actionDialog.sim.billing_cycle_day;
+          finalBillingDay = actionDialog.sim.billing_cycle_day || providerBillingDay || 1;
           billingSource = "provider";
         } else if (billingCycleReference === "installation") {
           const instDate = new Date(installationDate);
@@ -316,18 +366,17 @@ export default function SimCardsPage() {
           billingSource = "custom";
         }
 
-        if (!selectedImei.trim()) {
-          alert("IMEI device wajib diisi!");
-          return;
-        }
+        // Calculate free pulsa cost (freeMonths * monthly_cost)
+        const freePulsaCost = freeMonths * (actionDialog.sim.monthly_cost || 0);
 
         await simService.updateSimCard(actionDialog.sim.id, {
           status: "INSTALLED",
           installation_date: installationDate,
           current_imei: selectedImei,
           billing_cycle_day: finalBillingDay,
-          billing_cycle_source: billingSource, // ⭐ NEW
-          free_pulsa: parseFloat(freePulsa) || 0,
+          billing_cycle_source: billingSource,
+          free_pulsa_months: freeMonths,
+          free_pulsa: freePulsaCost,
         });
       } else if (actionDialog.type === "reactivate") {
         await simService.updateSimCard(actionDialog.sim.id, {
@@ -860,10 +909,15 @@ export default function SimCardsPage() {
                               Gunakan Billing Cycle Provider
                             </Label>
                             <p className="text-sm text-muted-foreground mt-1">
-                              {actionDialog.sim?.billing_cycle_day ? (
+                              {providerBillingDay ? (
+                                <>
+                                  Provider <span className="font-semibold">{actionDialog.sim?.provider}</span>: <span className="font-semibold">Day {providerBillingDay}</span> setiap bulan
+                                  <span className="text-xs block mt-1">(dari data provider)</span>
+                                </>
+                              ) : actionDialog.sim?.billing_cycle_day ? (
                                 <>
                                   Saat ini: <span className="font-semibold">Day {actionDialog.sim.billing_cycle_day}</span> setiap bulan
-                                  <span className="text-xs block mt-1">(dari sistem provider)</span>
+                                  <span className="text-xs block mt-1">(dari data SIM card sebelumnya)</span>
                                 </>
                               ) : (
                                 <span className="text-amber-600">⚠️ Belum ada billing cycle default. Pilih opsi lain.</span>
@@ -942,17 +996,42 @@ export default function SimCardsPage() {
                       value={selectedImei}
                       onChange={(e) => setSelectedImei(e.target.value)}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      IMEI harus unique, sistem akan validasi otomatis
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="free-pulsa">Free Pulsa (Rp)</Label>
-                    <Input
-                      id="free-pulsa"
-                      type="number"
-                      placeholder="0"
-                      value={freePulsa}
-                      onChange={(e) => setFreePulsa(e.target.value)}
-                    />
+                    <Label htmlFor="free-months">Free Pulsa (Bulan Gratis)</Label>
+                    <Select
+                      value={freeMonths.toString()}
+                      onValueChange={(value) => setFreeMonths(parseInt(value))}
+                    >
+                      <SelectTrigger id="free-months">
+                        <SelectValue placeholder="Pilih jumlah bulan gratis" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0 Bulan (Tidak ada gratis)</SelectItem>
+                        <SelectItem value="1">1 Bulan Gratis</SelectItem>
+                        <SelectItem value="2">2 Bulan Gratis</SelectItem>
+                        <SelectItem value="3">3 Bulan Gratis</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {freeMonths > 0 && actionDialog.sim?.monthly_cost && (
+                      <p className="text-xs text-muted-foreground">
+                        Total biaya free pulsa: <span className="font-semibold">
+                          {new Intl.NumberFormat("id-ID", {
+                            style: "currency",
+                            currency: "IDR",
+                            minimumFractionDigits: 0,
+                          }).format(freeMonths * actionDialog.sim.monthly_cost)}
+                        </span> ({freeMonths} bulan × {new Intl.NumberFormat("id-ID", {
+                          style: "currency",
+                          currency: "IDR",
+                          minimumFractionDigits: 0,
+                        }).format(actionDialog.sim.monthly_cost)})
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
