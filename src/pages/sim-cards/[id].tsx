@@ -339,12 +339,7 @@ export default function SimCardDetailPage() {
                       </p>
                       <div className="font-medium">
                         <Badge variant="destructive" className="font-normal">
-                          {(() => {
-                            const startDate = new Date(simCard.grace_period_start_date);
-                            const today = new Date();
-                            const days = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-                            return `${days} hari`;
-                          })()}
+                          {getGracePeriodStatus(simCard).daysInGracePeriod} hari
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -614,10 +609,9 @@ export default function SimCardDetailPage() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Jumlah Hari Overdue:</span>
-                          <span className="font-medium text-orange-600 font-bold">{(() => {
-                            const graceCost = calculateGracePeriodCost(simCard);
-                            return graceCost.gracePeriodDays;
-                          })()} hari</span>
+                          <span className="font-medium text-orange-600 font-bold">
+                            {calculateGracePeriodCost(simCard).gracePeriodDays} hari
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Tarif Harian:</span>
@@ -625,10 +619,9 @@ export default function SimCardDetailPage() {
                         </div>
                         <div className="flex justify-between pt-2 border-t">
                           <span className="font-semibold">Total Biaya Grace Period:</span>
-                          <span className="font-bold text-yellow-600">{formatCurrency((() => {
-                            const graceCost = calculateGracePeriodCost(simCard);
-                            return graceCost.gracePeriodCost;
-                          })())}</span>
+                          <span className="font-bold text-yellow-600">
+                            {formatCurrency(calculateGracePeriodCost(simCard).gracePeriodCost)}
+                          </span>
                         </div>
                         <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-2 rounded mt-2">
                           <p className="text-xs text-yellow-800 dark:text-yellow-200">
