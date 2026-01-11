@@ -426,7 +426,7 @@ export default function ExecutiveSummary() {
                 {formatCurrency(metrics.totalFreePulsaCost)}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {freePulsaCards.length} kartu dengan free pulsa aktif
+                {freePulsaCosts.length} kartu dengan free pulsa aktif
               </p>
             </CardContent>
           </Card>
@@ -602,14 +602,14 @@ export default function ExecutiveSummary() {
                   Total biaya free pulsa yang masih berjalan untuk semua kartu
                 </CardDescription>
               </div>
-              <Button onClick={exportFreePulsaData} disabled={freePulsaCards.length === 0}>
+              <Button onClick={exportFreePulsaData} disabled={freePulsaCosts.length === 0}>
                 <Download className="mr-2 h-4 w-4" />
                 Export Excel
               </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {freePulsaCards.length === 0 ? (
+            {freePulsaCosts.length === 0 ? (
               <div className="text-center py-12">
                 <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">Tidak ada free pulsa berjalan saat ini</p>
