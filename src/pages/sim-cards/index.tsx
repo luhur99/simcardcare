@@ -209,7 +209,6 @@ export default function SimCardsPage() {
         installation_date: formData.installation_date || null,
         deactivation_date: formData.deactivation_date || null,
         deactivation_reason: formData.deactivation_reason || null,
-        billing_cycle_day: null,
         monthly_cost: Number(formData.monthly_cost) || 0,
         accumulated_cost: 0,
         notes: formData.notes || null,
