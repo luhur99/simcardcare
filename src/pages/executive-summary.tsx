@@ -162,6 +162,10 @@ export default function ExecutiveSummary() {
 
   // Calculate Free Pulsa Cards - using function from simService
   const freePulsaCosts = useMemo(() => {
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59);
+
     const costs: Array<{
       phoneNumber: string;
       iccid: string;
@@ -177,8 +181,18 @@ export default function ExecutiveSummary() {
       if (sim.free_pulsa_months && sim.installation_date && sim.monthly_cost) {
         const calc = calculateFreePulsaCost(sim);
         
-        // Only include if there's cost incurred (months have elapsed)
-        if (calc.costIncurred > 0) {
+        // Check if free pulsa period overlaps with selected month
+        const installDate = new Date(sim.installation_date);
+        const expiryDate = calc.expiryDate ? new Date(calc.expiryDate) : null;
+        
+        // Only include if:
+        // 1. Installation date is before or within selected month end
+        // 2. Expiry date is after or within selected month start (still active in this month)
+        // 3. Has cost incurred (months have elapsed)
+        const isActiveInMonth = installDate <= monthEnd && 
+          (!expiryDate || expiryDate >= monthStart);
+        
+        if (isActiveInMonth && calc.costIncurred > 0) {
           costs.push({
             phoneNumber: sim.phone_number,
             iccid: sim.iccid || "N/A",
@@ -194,7 +208,7 @@ export default function ExecutiveSummary() {
     });
 
     return costs.sort((a, b) => b.costIncurred - a.costIncurred);
-  }, [simCards]);
+  }, [simCards, selectedMonth]);
 
   // Calculate Summary Metrics
   const metrics = useMemo(() => {
