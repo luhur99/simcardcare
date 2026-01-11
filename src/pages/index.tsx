@@ -69,7 +69,7 @@ export default function Home() {
   const chartData = useMemo(() => {
     if (simCards.length === 0) return [];
 
-    // Get last 6 months
+    // Get last 6 months (current month + 5 months back)
     const months: string[] = [];
     const currentDate = new Date();
     
@@ -102,26 +102,13 @@ export default function Home() {
         return deactivatedDate >= monthStart && deactivatedDate <= monthEnd;
       }).length;
 
-      // Calculate total SIMs at end of month for percentage
-      const totalAtMonthEnd = simCards.filter(sim => {
-        const createdDate = new Date(sim.created_at);
-        return createdDate <= monthEnd;
-      }).length;
-
-      // Calculate percentages
-      const warehousePercentage = totalAtMonthEnd > 0 ? (warehouseCount / totalAtMonthEnd) * 100 : 0;
-      const deactivatedPercentage = totalAtMonthEnd > 0 ? (deactivatedCount / totalAtMonthEnd) * 100 : 0;
-
       // Format month name
       const monthName = monthDate.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
 
       return {
         month: monthName,
-        warehouse: Number(warehousePercentage.toFixed(2)),
-        deactivated: Number(deactivatedPercentage.toFixed(2)),
-        warehouseCount,
-        deactivatedCount,
-        totalAtMonthEnd
+        warehouse: warehouseCount,
+        deactivated: deactivatedCount
       };
     });
 
@@ -257,7 +244,7 @@ export default function Home() {
             <CardHeader>
               <CardTitle>SIM Cards Masuk (Warehouse) - Per Bulan</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Persentase kartu simcard yang masuk ke warehouse
+                Jumlah kartu simcard yang masuk ke warehouse
               </p>
             </CardHeader>
             <CardContent>
@@ -272,14 +259,11 @@ export default function Home() {
                     height={80}
                   />
                   <YAxis 
-                    label={{ value: 'Persentase (%)', angle: -90, position: 'insideLeft' }}
-                    domain={[0, 'auto']}
+                    label={{ value: 'Jumlah (Qty)', angle: -90, position: 'insideLeft' }}
+                    allowDecimals={false}
                   />
                   <Tooltip 
-                    formatter={(value: number, name: string, props: any) => [
-                      `${value}% (${props.payload.warehouseCount} cards)`,
-                      'Warehouse'
-                    ]}
+                    formatter={(value: number) => [`${value} cards`, 'Warehouse']}
                   />
                   <Legend />
                   <Line 
@@ -287,7 +271,7 @@ export default function Home() {
                     dataKey="warehouse" 
                     stroke="#8884d8" 
                     strokeWidth={2}
-                    name="Warehouse (%)"
+                    name="Warehouse (Qty)"
                     dot={{ r: 4 }}
                     activeDot={{ r: 6 }}
                   />
@@ -301,7 +285,7 @@ export default function Home() {
             <CardHeader>
               <CardTitle>SIM Cards Deactivated - Per Bulan</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Persentase kartu simcard yang deactivated
+                Jumlah kartu simcard yang deactivated
               </p>
             </CardHeader>
             <CardContent>
@@ -316,14 +300,11 @@ export default function Home() {
                     height={80}
                   />
                   <YAxis 
-                    label={{ value: 'Persentase (%)', angle: -90, position: 'insideLeft' }}
-                    domain={[0, 'auto']}
+                    label={{ value: 'Jumlah (Qty)', angle: -90, position: 'insideLeft' }}
+                    allowDecimals={false}
                   />
                   <Tooltip 
-                    formatter={(value: number, name: string, props: any) => [
-                      `${value}% (${props.payload.deactivatedCount} cards)`,
-                      'Deactivated'
-                    ]}
+                    formatter={(value: number) => [`${value} cards`, 'Deactivated']}
                   />
                   <Legend />
                   <Line 
@@ -331,7 +312,7 @@ export default function Home() {
                     dataKey="deactivated" 
                     stroke="#ef4444" 
                     strokeWidth={2}
-                    name="Deactivated (%)"
+                    name="Deactivated (Qty)"
                     dot={{ r: 4 }}
                     activeDot={{ r: 6 }}
                   />
@@ -340,58 +321,6 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Access */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Access</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Navigate to different sections of the system:
-              </p>
-              <div className="grid gap-2 md:grid-cols-2">
-                <Link 
-                  href="/sim-cards" 
-                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="font-medium">SIM Cards</div>
-                  <div className="text-sm text-muted-foreground">
-                    Manage your SIM card inventory
-                  </div>
-                </Link>
-                <Link 
-                  href="/devices" 
-                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="font-medium">Devices</div>
-                  <div className="text-sm text-muted-foreground">
-                    Track device assignments
-                  </div>
-                </Link>
-                <Link 
-                  href="/customers" 
-                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="font-medium">Customers</div>
-                  <div className="text-sm text-muted-foreground">
-                    Manage customer information
-                  </div>
-                </Link>
-                <Link 
-                  href="/history" 
-                  className="p-4 border rounded-lg hover:bg-accent transition-colors"
-                >
-                  <div className="font-medium">History</div>
-                  <div className="text-sm text-muted-foreground">
-                    View transaction history
-                  </div>
-                </Link>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </Layout>
   );
