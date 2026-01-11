@@ -119,11 +119,11 @@ export default function ExecutiveSummary() {
       let reason = "";
 
       // Grace Period SIMs
-      if (sim.status === "GRACE_PERIOD" && sim.installation_date) {
-        const installDate = new Date(sim.installation_date);
-        if (installDate >= monthStart && installDate <= monthEnd) {
+      if (sim.status === "GRACE_PERIOD" && sim.grace_period_start_date) {
+        const graceStartDate = new Date(sim.grace_period_start_date);
+        if (graceStartDate >= monthStart && graceStartDate <= monthEnd) {
           const now = new Date();
-          days = Math.floor((now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24));
+          days = Math.floor((now.getTime() - graceStartDate.getTime()) / (1000 * 60 * 60 * 24));
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
           reason = "Grace Period - Seharusnya sudah billing";
@@ -131,7 +131,7 @@ export default function ExecutiveSummary() {
       }
 
       // Ghost SIM (ACTIVATED but not INSTALLED)
-      if (sim.status === "ACTIVATED" && sim.activation_date) {
+      if (sim.status === "ACTIVATED" && !sim.installation_date && sim.activation_date) {
         const activationDate = new Date(sim.activation_date);
         if (activationDate >= monthStart && activationDate <= monthEnd) {
           const now = new Date();
@@ -555,7 +555,7 @@ export default function ExecutiveSummary() {
                         <TableCell>{card.provider}</TableCell>
                         <TableCell>
                           <Badge 
-                            variant={card.status === "GRACE_PERIOD" ? "secondary" : "default"}
+                            variant={card.status === "GRACE_PERIOD" ? "secondary" : "destructive"}
                           >
                             {card.status}
                           </Badge>
