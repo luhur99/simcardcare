@@ -99,7 +99,6 @@ export default function SimCardsPage() {
   const [billingCycleReference, setBillingCycleReference] = useState<"existing" | "installation" | "custom">("existing");
   const [selectedImei, setSelectedImei] = useState("");
   const [freePulsa, setFreePulsa] = useState("0");
-  const [freeMonths, setFreeMonths] = useState<number>(0);
   const [reactivationDate, setReactivationDate] = useState(getTodayDate());
   
   // Provider data for billing cycle reference
@@ -244,7 +243,7 @@ export default function SimCardsPage() {
   // Fetch provider billing cycle
   const fetchProviderBillingCycle = async (providerName: string) => {
     try {
-      const providers = await providerService.getProviders();
+      const providers = await providerService.getAllProviders();
       const provider = providers.find(p => p.name === providerName);
       setProviderBillingDay(provider?.billing_cycle_day || null);
     } catch (error) {
