@@ -903,16 +903,20 @@ export default function SimCardsPage() {
               <Label htmlFor="phone" className="text-right">
                 Phone Number
               </Label>
-              <Input
-                id="phone"
-                value={formData.phone_number}
-                onChange={(e) => {
-                  const formatted = formatPhoneNumber(e.target.value);
-                  setFormData({ ...formData, phone_number: formatted });
-                }}
-                className="col-span-3"
-                placeholder="081234567890"
-              />
+              <div className="col-span-3 space-y-1">
+                <Input
+                  id="phone"
+                  value={formData.phone_number}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, phone_number: formatted });
+                  }}
+                  placeholder="081234567890"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Format: 081234567890 atau 628123456789 (akan dikonversi otomatis)
+                </p>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="iccid" className="text-right">
