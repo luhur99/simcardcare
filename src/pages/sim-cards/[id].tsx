@@ -35,6 +35,58 @@ function getBillingCycleSource(simCard: SimCard): string {
   return "(Custom/Provider)";
 }
 
+// ⭐ Helper function to calculate free pulsa cost
+function calculateFreePulsaCost(simCard: SimCard) {
+  if (!simCard.free_pulsa_months || !simCard.installation_date || !simCard.monthly_cost) {
+    return {
+      monthsElapsed: 0,
+      costIncurred: 0,
+      isActive: false,
+      expiryDate: null,
+      daysRemaining: 0,
+      progressPercent: 0
+    };
+  }
+
+  const installDate = new Date(simCard.installation_date);
+  const today = new Date();
+  
+  // Calculate months elapsed (inclusive of current month if started)
+  const yearDiff = today.getFullYear() - installDate.getFullYear();
+  const monthDiff = today.getMonth() - installDate.getMonth();
+  const monthsElapsed = yearDiff * 12 + monthDiff + 1; // +1 because first month counts
+  
+  // Calculate expiry date (end of the last free month)
+  const expiryDate = new Date(installDate);
+  expiryDate.setMonth(expiryDate.getMonth() + simCard.free_pulsa_months);
+  expiryDate.setDate(0); // Last day of previous month (end of free period)
+  
+  // Check if still active
+  const isActive = today <= expiryDate;
+  
+  // Calculate cost incurred (only up to free_pulsa_months)
+  const monthsToCharge = Math.min(monthsElapsed, simCard.free_pulsa_months);
+  const costIncurred = simCard.monthly_cost * monthsToCharge;
+  
+  // Calculate days remaining
+  const daysRemaining = isActive 
+    ? Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+  
+  // Calculate progress percentage
+  const progressPercent = Math.min((monthsElapsed / simCard.free_pulsa_months) * 100, 100);
+  
+  return {
+    monthsElapsed: monthsToCharge,
+    totalFreeMonths: simCard.free_pulsa_months,
+    costIncurred,
+    isActive,
+    expiryDate,
+    daysRemaining,
+    progressPercent
+  };
+}
+
 export default function SimCardDetailPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -374,6 +426,179 @@ export default function SimCardDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Free Pulsa Cost Tracking */}
+            {simCard.free_pulsa_months && simCard.installation_date && (
+              <Card className="border-green-200 dark:border-green-800">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Gift className="h-5 w-5 text-green-600" />
+                    Biaya Pulsa Gratis yang Sudah Dikeluarkan
+                  </CardTitle>
+                  <CardDescription>
+                    Tracking biaya operasional untuk periode pulsa gratis
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {(() => {
+                    const freePulsaCalc = calculateFreePulsaCost(simCard);
+                    return (
+                      <>
+                        {/* Summary Stats */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Total Cost Incurred */}
+                          <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Total Biaya yang Sudah Dikeluarkan
+                            </p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-2xl font-bold text-green-600">
+                                {formatCurrency(freePulsaCalc.costIncurred)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {freePulsaCalc.monthsElapsed} dari {freePulsaCalc.totalFreeMonths} bulan
+                            </p>
+                          </div>
+
+                          {/* Monthly Cost */}
+                          <div className="bg-muted/50 p-4 rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-2">Biaya per Bulan</p>
+                            <p className="text-2xl font-bold">
+                              {formatCurrency(simCard.monthly_cost)}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Fixed rate
+                            </p>
+                          </div>
+
+                          {/* Status */}
+                          <div className={`p-4 rounded-lg ${
+                            freePulsaCalc.isActive 
+                              ? 'bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800' 
+                              : 'bg-gray-50 dark:bg-gray-950/20 border border-gray-200 dark:border-gray-800'
+                          }`}>
+                            <p className="text-sm text-muted-foreground mb-2">Status</p>
+                            <div className="flex items-center gap-2">
+                              {freePulsaCalc.isActive ? (
+                                <>
+                                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                  <span className="font-bold text-green-600">Aktif</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-5 w-5 text-gray-600" />
+                                  <span className="font-bold text-gray-600">Berakhir</span>
+                                </>
+                              )}
+                            </div>
+                            {freePulsaCalc.isActive && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                {freePulsaCalc.daysRemaining} hari lagi
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Progress Bar */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Progress Periode Gratis</span>
+                            <span className="font-medium">
+                              {freePulsaCalc.monthsElapsed} / {freePulsaCalc.totalFreeMonths} bulan
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                            <div 
+                              className={`h-3 rounded-full transition-all ${
+                                freePulsaCalc.isActive ? 'bg-green-600' : 'bg-gray-400'
+                              }`}
+                              style={{ width: `${freePulsaCalc.progressPercent}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground text-center">
+                            {freePulsaCalc.progressPercent.toFixed(0)}% terpakai
+                          </p>
+                        </div>
+
+                        <Separator />
+
+                        {/* Detailed Breakdown */}
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold">Detail Perhitungan:</p>
+                          
+                          <div className="bg-muted/30 p-4 rounded-lg space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Tanggal Instalasi:</span>
+                              <span className="font-medium">{formatDate(simCard.installation_date)}</span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Durasi Gratis:</span>
+                              <span className="font-medium">{simCard.free_pulsa_months} bulan</span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Tanggal Berakhir:</span>
+                              <span className="font-medium">
+                                {formatDate(freePulsaCalc.expiryDate?.toISOString() || null)}
+                              </span>
+                            </div>
+
+                            <Separator className="my-2" />
+                            
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Bulan yang Sudah Berjalan:</span>
+                              <span className="font-medium">{freePulsaCalc.monthsElapsed} bulan</span>
+                            </div>
+                            
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Biaya per Bulan:</span>
+                              <span className="font-medium">{formatCurrency(simCard.monthly_cost)}</span>
+                            </div>
+                            
+                            <Separator className="my-2" />
+                            
+                            <div className="flex justify-between items-center pt-2 border-t-2 border-green-200 dark:border-green-800">
+                              <span className="font-semibold">Total Biaya Dikeluarkan:</span>
+                              <span className="text-lg font-bold text-green-600">
+                                {formatCurrency(freePulsaCalc.costIncurred)}
+                              </span>
+                            </div>
+                            
+                            <p className="text-xs text-muted-foreground text-center pt-2">
+                              = {formatCurrency(simCard.monthly_cost)} × {freePulsaCalc.monthsElapsed} bulan
+                            </p>
+                          </div>
+
+                          {/* Warning if expired */}
+                          {!freePulsaCalc.isActive && (
+                            <div className="bg-gray-50 dark:bg-gray-950/20 border border-gray-200 dark:border-gray-800 p-3 rounded">
+                              <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                                <Info className="h-3 w-3" />
+                                Periode pulsa gratis telah berakhir. SIM card sekarang dikenakan biaya normal.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Info if still active */}
+                          {freePulsaCalc.isActive && (
+                            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 p-3 rounded">
+                              <p className="text-xs text-blue-800 dark:text-blue-200 flex items-center gap-1">
+                                <Info className="h-3 w-3" />
+                                Periode gratis masih aktif. Biaya ini adalah operasional internal, tidak ditagihkan ke customer.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Billing Cycle Information */}
             {simCard.billing_cycle_day && (
