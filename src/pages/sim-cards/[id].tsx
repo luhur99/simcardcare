@@ -270,6 +270,33 @@ export default function SimCardDetailPage() {
     return colors[status] || "bg-gray-500";
   };
 
+  // Memoized calculations
+  const burden = useMemo(() => simCard ? calculateDailyBurden(simCard) : { overlap_1_days: 0, overlap_1_cost: 0, overlap_2_days: 0, overlap_2_cost: 0 }, [simCard]);
+  
+  const dailyRate = useMemo(() => simCard ? (simCard.monthly_cost || 0) / 30 : 0, [simCard]);
+  
+  const freePulsaCalc = useMemo(() => simCard ? calculateFreePulsaCost(simCard) : {
+    monthsElapsed: 0,
+    totalFreeMonths: 0,
+    costIncurred: 0,
+    isActive: false,
+    expiryDate: null,
+    daysRemaining: 0,
+    progressPercent: 0
+  }, [simCard]);
+  
+  const graceStatus = useMemo(() => simCard ? getGracePeriodStatus(simCard) : {
+    isInGracePeriod: false,
+    daysInGracePeriod: 0,
+    exceedsMaxDuration: false,
+    daysOverdue: 0
+  }, [simCard]);
+  
+  const gracePeriodCost = useMemo(() => simCard ? calculateGracePeriodCost(simCard) : {
+    gracePeriodDays: 0,
+    gracePeriodCost: 0
+  }, [simCard]);
+
   if (loading) {
     return (
       <Layout>
@@ -300,13 +327,6 @@ export default function SimCardDetailPage() {
       </Layout>
     );
   }
-
-  // Memoized calculations
-  const burden = useMemo(() => calculateDailyBurden(simCard), [simCard]);
-  const dailyRate = useMemo(() => (simCard.monthly_cost || 0) / 30, [simCard.monthly_cost]);
-  const freePulsaCalc = useMemo(() => calculateFreePulsaCost(simCard), [simCard]);
-  const graceStatus = useMemo(() => getGracePeriodStatus(simCard), [simCard]);
-  const gracePeriodCost = useMemo(() => calculateGracePeriodCost(simCard), [simCard]);
 
   return (
     <Layout>
