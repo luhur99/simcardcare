@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp } from "lucide-react";
+import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp, Gift } from "lucide-react";
 import Link from "next/link";
 
 // ⭐ Helper function to determine billing cycle source
@@ -294,73 +294,64 @@ export default function SimCardDetailPage() {
                   Informasi SIM Card
                 </CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Nomor Telepon</p>
-                  <p className="font-medium">{simCard.phone_number}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">ICCID</p>
-                  <p className="font-medium">{simCard.iccid || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Provider</p>
-                  <p className="font-medium">{simCard.provider}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Paket</p>
-                  <p className="font-medium">{simCard.plan_name || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">IMEI Terpasang</p>
-                  <p className="font-medium">{simCard.current_imei || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pulsa Gratis</p>
-                  <p className="font-medium">
-                    {simCard.free_pulsa_months ? (
-                      <Badge variant="secondary" className="font-normal">
-                        {simCard.free_pulsa_months} bulan
-                      </Badge>
-                    ) : (
-                      "-"
-                    )}
-                  </p>
-                </div>
-                {simCard.status === "GRACE_PERIOD" && simCard.grace_period_start_date && (
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">Total Hari di Grace Period</p>
-                    <p className="font-medium">
-                      <Badge variant="destructive" className="font-normal">
-                        {(() => {
-                          const startDate = new Date(simCard.grace_period_start_date);
-                          const today = new Date();
-                          const days = Math.floor(
-                            (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-                          );
-                          return `${days} hari`;
-                        })()}
-                      </Badge>
-                    </p>
+                    <p className="text-sm text-muted-foreground">Nomor Telepon</p>
+                    <p className="font-medium">{simCard.phone_number}</p>
                   </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Billing Cycle Day</p>
-                    <p className="text-lg font-semibold mt-1">
-                      {simCard.billing_cycle_day ? (
-                        <span className="flex items-center gap-2">
-                          <Calendar className="h-5 w-5 text-muted-foreground" />
-                          Day {simCard.billing_cycle_day}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {getBillingCycleSource(simCard)}
-                          </span>
-                        </span>
+                    <p className="text-sm text-muted-foreground">ICCID</p>
+                    <p className="font-medium">{simCard.iccid}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Provider</p>
+                    <p className="font-medium">{simCard.provider}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Paket</p>
+                    <p className="font-medium">{simCard.plan_name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">IMEI Terpasang</p>
+                    <p className="font-medium">{simCard.current_imei || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">
+                      <Gift className="inline h-4 w-4 mr-1" />
+                      Pulsa Gratis
+                    </p>
+                    <div className="font-medium">
+                      {simCard.free_pulsa_months ? (
+                        <Badge variant="secondary" className="font-normal">
+                          {simCard.free_pulsa_months} bulan
+                        </Badge>
                       ) : (
-                        <span className="text-muted-foreground">Not set</span>
+                        "-"
                       )}
-                    </p>
+                    </div>
                   </div>
+                  {simCard.status === "GRACE_PERIOD" && simCard.grace_period_start_date && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        <Clock className="inline h-4 w-4 mr-1" />
+                        Total Hari di Grace Period
+                      </p>
+                      <div className="font-medium">
+                        <Badge variant="destructive" className="font-normal">
+                          {(() => {
+                            const startDate = new Date(simCard.grace_period_start_date);
+                            const today = new Date();
+                            const days = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+                            return `${days} hari`;
+                          })()}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Start: {formatDate(simCard.grace_period_start_date)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
