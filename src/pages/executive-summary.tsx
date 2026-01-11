@@ -121,9 +121,15 @@ export default function ExecutiveSummary() {
       // Grace Period SIMs
       if (sim.status === "GRACE_PERIOD" && sim.grace_period_start_date) {
         const graceStartDate = new Date(sim.grace_period_start_date);
-        if (graceStartDate >= monthStart && graceStartDate <= monthEnd) {
-          const now = new Date();
-          days = Math.floor((now.getTime() - graceStartDate.getTime()) / (1000 * 60 * 60 * 24));
+        const now = new Date();
+        
+        // Calculate overlap between grace period and selected month
+        const overlapStart = graceStartDate > monthStart ? graceStartDate : monthStart;
+        const overlapEnd = now < monthEnd ? now : monthEnd;
+        
+        // Only include if there's overlap with selected month
+        if (overlapStart <= overlapEnd && graceStartDate <= monthEnd) {
+          days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
           reason = "Grace Period - Seharusnya sudah billing";
@@ -133,9 +139,15 @@ export default function ExecutiveSummary() {
       // Ghost SIM (ACTIVATED but not INSTALLED)
       if (sim.status === "ACTIVATED" && !sim.installation_date && sim.activation_date) {
         const activationDate = new Date(sim.activation_date);
-        if (activationDate >= monthStart && activationDate <= monthEnd) {
-          const now = new Date();
-          days = Math.floor((now.getTime() - activationDate.getTime()) / (1000 * 60 * 60 * 24));
+        const now = new Date();
+        
+        // Calculate overlap between ghost period and selected month
+        const overlapStart = activationDate > monthStart ? activationDate : monthStart;
+        const overlapEnd = now < monthEnd ? now : monthEnd;
+        
+        // Only include if there's overlap with selected month
+        if (overlapStart <= overlapEnd && activationDate <= monthEnd) {
+          days = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const dailyRate = sim.monthly_cost / 30;
           cost = days * dailyRate;
           reason = "Ghost SIM - Activated tapi tidak terinstall";
