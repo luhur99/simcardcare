@@ -783,6 +783,9 @@ export default function SimCardsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col text-xs text-muted-foreground gap-1">
+                      {sim.purchase_date && (
+                        <span>Purchase: {formatDate(sim.purchase_date)}</span>
+                      )}
                       {sim.installation_date && (
                         <span>Install: {formatDate(sim.installation_date)}</span>
                       )}
