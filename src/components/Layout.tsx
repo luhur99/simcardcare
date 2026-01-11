@@ -9,7 +9,9 @@ import {
   LayoutDashboard,
   Menu,
   TrendingDown,
-  Home
+  Home,
+  Phone,
+  Building2
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
@@ -23,6 +25,7 @@ export function Layout({ children }: LayoutProps) {
     { name: "Dashboard", href: "/", icon: Home },
     { name: "SIM Cards", href: "/sim-cards", icon: CreditCard },
     { name: "Executive Summary", href: "/executive-summary", icon: TrendingDown },
+    { name: "Providers", href: "/providers", icon: Building2 },
     { name: "Devices", href: "/devices", icon: Smartphone },
     { name: "Customers", href: "/customers", icon: Users },
     { name: "History", href: "/history", icon: History },
