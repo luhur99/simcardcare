@@ -2,12 +2,10 @@ import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useState, useEffect } from "react";
-import { simService } from "@/services/simService";
 import Link from "next/link";
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const [stats, setStats] = useState({
     totalSims: 0,
     activeDevices: 0,
@@ -16,23 +14,30 @@ export default function Home() {
   });
 
   useEffect(() => {
-    loadStats();
+    setMounted(true);
+    // Load stats from localStorage for now
+    try {
+      const stored = localStorage.getItem("sim_cards");
+      if (stored) {
+        const sims = JSON.parse(stored);
+        const warehouse = sims.filter((s: any) => s.status === "WAREHOUSE").length;
+        const installed = sims.filter((s: any) => s.status === "INSTALLED").length;
+        
+        setStats({
+          totalSims: sims.length,
+          activeDevices: installed,
+          customers: 0,
+          warehouse: warehouse
+        });
+      }
+    } catch (err) {
+      console.error("Error loading stats:", err);
+    }
   }, []);
 
-  const loadStats = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await simService.getStats();
-      setStats(data || { totalSims: 0, activeDevices: 0, customers: 0, warehouse: 0 });
-    } catch (err: any) {
-      console.error("Error loading stats:", err);
-      setError(err.message || "Failed to load stats");
-      setStats({ totalSims: 0, activeDevices: 0, customers: 0, warehouse: 0 });
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <Layout>
@@ -49,85 +54,63 @@ export default function Home() {
           </p>
         </div>
 
-        {loading && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">Loading dashboard...</p>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total SIM Cards
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalSims}</div>
+              <p className="text-xs text-muted-foreground">
+                Active SIM cards in system
+              </p>
             </CardContent>
           </Card>
-        )}
 
-        {error && (
           <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <p className="text-red-600">Error: {error}</p>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Active Devices
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.activeDevices}</div>
+              <p className="text-xs text-muted-foreground">
+                Devices currently in use
+              </p>
             </CardContent>
           </Card>
-        )}
 
-        {!loading && !error && (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total SIM Cards
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.totalSims}</div>
-                <p className="text-xs text-muted-foreground">
-                  Active SIM cards in system
-                </p>
-              </CardContent>
-            </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Customers
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.customers}</div>
+              <p className="text-xs text-muted-foreground">
+                Total registered customers
+              </p>
+            </CardContent>
+          </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Active Devices
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.activeDevices}</div>
-                <p className="text-xs text-muted-foreground">
-                  Devices currently in use
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Customers
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.customers}</div>
-                <p className="text-xs text-muted-foreground">
-                  Total registered customers
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Warehouse Stock
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats.warehouse}</div>
-                <p className="text-xs text-muted-foreground">
-                  SIM cards available
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Warehouse Stock
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.warehouse}</div>
+              <p className="text-xs text-muted-foreground">
+                SIM cards available
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
