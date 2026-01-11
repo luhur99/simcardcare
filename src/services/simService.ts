@@ -1,5 +1,7 @@
 import { supabase, SimCard, Device, Customer, SimStatus, DailyBurdenResult, DailyBurdenLog } from "@/lib/supabase";
 
+export type { SimCard, SimStatus };
+
 // Helper to safely access localStorage (prevent SSR errors)
 const getLocalStorage = (key: string): string | null => {
   if (typeof window === 'undefined') return null;

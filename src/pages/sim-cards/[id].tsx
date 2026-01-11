@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Calendar, CreditCard, DollarSign, TrendingUp, Info, Clock, Package, CheckCircle, Smartphone, AlertCircle, XCircle, RotateCcw, User, MapPin, CheckCircle2, XCircle, AlertCircle, Activity } from "lucide-react";
+import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 // ⭐ Helper function to determine billing cycle source

@@ -31,9 +31,11 @@ export interface SimCard {
   deactivation_date: string | null;
   deactivation_reason: string | null;
   billing_cycle_day: number | null;
+  billing_cycle_source?: "provider" | "installation" | "custom" | null;
   monthly_cost: number | null;
   accumulated_cost: number | null;
   free_pulsa_months: number | null;
+  free_pulsa: number | null; // ⭐ NEW: Monetary amount (Rp)
   grace_period_start_date: string | null;
   grace_period_due_date: string | null;
   is_reactivated: boolean;
