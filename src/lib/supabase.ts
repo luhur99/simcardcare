@@ -44,6 +44,7 @@ export interface SimCard {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  purchase_date?: string;
 }
 
 export interface Device {
