@@ -29,6 +29,7 @@ import {
   SidebarMenuButton,
   SidebarProvider,
 } from "./ui/sidebar";
+import { useEffect, useState } from "react";
 
 interface LayoutProps {
   children: ReactNode;
@@ -36,7 +37,11 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const router = useRouter();
-  
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const navigation = [
     { name: "Dashboard", href: "/", icon: Home },
     { name: "SIM Cards", href: "/sim-cards", icon: CreditCard },
@@ -48,9 +53,9 @@ export function Layout({ children }: LayoutProps) {
   ];
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen bg-background w-full flex">
-        {/* Sidebar - Desktop */}
+    <div className="min-h-screen bg-background w-full flex">
+      {/* Sidebar - Desktop */}
+      {mounted && (
         <Sidebar className="hidden md:flex">
           <SidebarContent>
             <SidebarHeader>
@@ -99,58 +104,58 @@ export function Layout({ children }: LayoutProps) {
             </SidebarMenu>
           </SidebarFooter>
         </Sidebar>
+      )}
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
-          {/* Header */}
-          <header className="sticky top-0 z-50 w-full border-b bg-background">
-            <div className="container flex h-16 items-center justify-between px-4">
-              <div className="flex items-center gap-4">
-                {/* Mobile Menu */}
-                <Sheet>
-                  <SheetTrigger asChild className="md:hidden">
-                    <Button variant="ghost" size="icon">
-                      <Menu className="h-6 w-6" />
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-64 p-4">
-                    <div className="flex flex-col gap-4 mt-8">
-                      {navigation.map((item) => (
-                        <Link
-                          key={item.name}
-                          href={item.href}
-                          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
-                        >
-                          <item.icon className="h-5 w-5" />
-                          <span>{item.name}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  </SheetContent>
-                </Sheet>
-
-                <Link href="/" className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-                    <CreditCard className="h-5 w-5 text-primary-foreground" />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <header className="sticky top-0 z-50 w-full border-b bg-background">
+          <div className="container flex h-16 items-center justify-between px-4">
+            <div className="flex items-center gap-4">
+              {/* Mobile Menu */}
+              <Sheet>
+                <SheetTrigger asChild className="md:hidden">
+                  <Button variant="ghost" size="icon">
+                    <Menu className="h-6 w-6" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-64 p-4">
+                  <div className="flex flex-col gap-4 mt-8">
+                    {navigation.map((item) => (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
+                      >
+                        <item.icon className="h-5 w-5" />
+                        <span>{item.name}</span>
+                      </Link>
+                    ))}
                   </div>
-                  <span className="font-bold text-xl">BKT-SimCare</span>
-                </Link>
-              </div>
+                </SheetContent>
+              </Sheet>
 
-              <div className="flex items-center gap-2 md:hidden">
-                <ThemeSwitch />
-              </div>
+              <Link href="/" className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+                  <CreditCard className="h-5 w-5 text-primary-foreground" />
+                </div>
+                <span className="font-bold text-xl">BKT-SimCare</span>
+              </Link>
             </div>
-          </header>
 
-          {/* Main Content */}
-          <main className="flex-1 p-6">
-            <div className="container mx-auto">
-              {children}
+            <div className="flex items-center gap-2 md:hidden">
+              <ThemeSwitch />
             </div>
-          </main>
-        </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 p-6">
+          <div className="container mx-auto">
+            {children}
+          </div>
+        </main>
       </div>
-    </SidebarProvider>
+    </div>
   );
 }
