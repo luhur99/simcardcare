@@ -47,9 +47,10 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { getTodayWIB } from "@/lib/dateUtils";
 
-// Helper function
-const getTodayDate = () => new Date().toISOString().split("T")[0];
+// Helper function - Updated to use WIB timezone
+const getTodayDate = () => getTodayWIB();
 
 // Phone number formatting and validation
 const formatPhoneNumber = (input: string): string => {

@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, CreditCard, Smartphone, Calendar, User, MapPin, Clock, CheckCircle2, XCircle, AlertCircle, Activity, Package, CheckCircle, RotateCcw, Info, DollarSign, TrendingUp, Gift, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { formatDateWIB, formatDateTimeWIB } from "@/lib/dateUtils";
 
 // ⭐ Helper function to determine billing cycle source
 function getBillingCycleSource(simCard: SimCard): string {
@@ -196,23 +197,11 @@ export default function SimCardDetailPage() {
   };
 
   const formatDate = (date: string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleDateString("id-ID", {
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    });
+    return formatDateWIB(date);
   };
 
   const formatDateTime = (date: string | null) => {
-    if (!date) return "-";
-    return new Date(date).toLocaleString("id-ID", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    return formatDateTimeWIB(date);
   };
 
   const getEventIcon = (eventType: string, newStatus: string) => {

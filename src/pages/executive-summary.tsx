@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, Download, TrendingDown, DollarSign, Calendar, Ghost } from "lucide-react";
 import { simService, calculateDailyBurden, calculateFreePulsaCost } from "@/services/simService";
 import type { SimCard } from "@/lib/supabase";
+import { getTodayWIB, formatDateWIB, formatDateTimeWIB } from "@/lib/dateUtils";
 
 interface OverlapSimCard {
   phoneNumber: string;
@@ -293,7 +294,7 @@ export default function ExecutiveSummary() {
     ];
 
     csvRows.push("");
-    csvRows.push(`Export Date,${new Date().toISOString()}`);
+    csvRows.push(`Export Date,${formatDateTimeWIB(new Date())}`);
     csvRows.push(`Period,${formatDateRange()}`);
 
     const csvContent = csvRows.join("\n");
