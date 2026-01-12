@@ -112,7 +112,16 @@ export function formatDateTimeWIB(date: Date | string | null): string {
  */
 export function calculateDaysWIB(startDate: string | Date, endDate: string | Date = new Date()): number {
   const start = typeof startDate === "string" ? createWIBDate(startDate) : startDate;
-  const end = typeof endDate === "string" ? createWIBDate(endDate.toISOString().split("T")[0]) : endDate;
+  
+  let end: Date;
+  if (typeof endDate === "string") {
+    end = createWIBDate(endDate);
+  } else {
+    // If it's a Date object, convert to WIB midnight for fair comparison
+    // Add 7 hours to get WIB date string
+    const wibDateString = new Date(endDate.getTime() + (7 * 60 * 60 * 1000)).toISOString().split("T")[0];
+    end = createWIBDate(wibDateString);
+  }
   
   const diffTime = Math.abs(end.getTime() - start.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
