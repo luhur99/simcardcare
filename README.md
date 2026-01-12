@@ -915,7 +915,6 @@ Status: ACTIVATED
 ```excel
 ICCID: 8962090212345678901
 Phone: 081234567890
-Current IMEI: 123456789012345
 Status: WAREHOUSE
 (❌ WAREHOUSE status tidak boleh punya IMEI)
 ```
@@ -1296,756 +1295,797 @@ Halaman Executive Summary menyediakan laporan komprehensif untuk manajemen denga
 
 ---
 
-## 🔄 Import Data Excel (Advanced Guide)
+## 🧮 **EXECUTIVE SUMMARY - LOGIC & PERHITUNGAN DETAIL**
 
-### Import Excel Best Practices
+### **Overview Komponen Executive Summary**
 
-#### Persiapan Data
+Executive Summary page terdiri dari beberapa komponen analisis utama yang memberikan insight mendalam tentang status SIM cards di sistem. Berikut adalah penjelasan lengkap setiap komponen.
 
-**1. Clean Your Data**
-- Hapus spaces di awal/akhir text
-- Pastikan no leading zeros hilang (contoh: ICCID, Phone)
-- Format date konsisten (YYYY-MM-DD)
-- Hapus duplicate rows sebelum upload
+---
 
-**2. Validate ICCID**
-```excel
-Formula untuk cek length ICCID:
-=LEN(A2)
+### **1️⃣ KEY PERFORMANCE INDICATORS (KPIs)**
 
-Harus return 19 atau 20
+#### **A. Total Cards**
+
+**Fungsi:**
+- Menampilkan total keseluruhan SIM cards yang ada di sistem dalam periode yang dipilih
+
+**Logic & Perhitungan:**
+```typescript
+// Formula
+Total Cards = COUNT(sim_cards WHERE created_at BETWEEN startDate AND endDate)
+
+// Contoh Implementasi
+const totalCards = simCards.filter(sim => {
+  const createdDate = new Date(sim.created_at);
+  return createdDate >= new Date(startDate) && createdDate <= new Date(endDate);
+}).length;
 ```
 
-**3. Validate Phone Number**
-```excel
-Formula untuk cek length Phone:
-=LEN(B2)
+**Contoh Konkret:**
+```
+Periode: 01 Dec 2025 - 31 Dec 2025
 
-Harus return 10-15
+Data:
+- SIM A: created_at = "2025-12-05" ✅ (dalam periode)
+- SIM B: created_at = "2025-12-15" ✅ (dalam periode)
+- SIM C: created_at = "2025-11-20" ❌ (di luar periode)
+- SIM D: created_at = "2025-12-28" ✅ (dalam periode)
+
+Result: Total Cards = 3
 ```
 
-**4. Validate IMEI**
-```excel
-Formula untuk cek length IMEI:
-=LEN(E2)
+**Interpretasi:**
+- **Tinggi (>100)**: High volume SIM card inventory
+- **Sedang (50-100)**: Moderate inventory level
+- **Rendah (<50)**: Low inventory, mungkin perlu restock
 
-Harus return 15 (jika diisi)
+---
+
+#### **B. Active Rate**
+
+**Fungsi:**
+- Menghitung persentase SIM cards yang aktif (tidak DEACTIVATED) dibandingkan total
+
+**Logic & Perhitungan:**
+```typescript
+// Formula
+Active Cards = COUNT(sim_cards WHERE status != 'DEACTIVATED')
+Total Cards = COUNT(all sim_cards)
+Active Rate = (Active Cards / Total Cards) × 100%
+
+// Contoh Implementasi
+const activeCards = simCards.filter(sim => sim.status !== "DEACTIVATED").length;
+const totalCards = simCards.length;
+const activeRate = totalCards > 0 
+  ? Math.round((activeCards / totalCards) * 100) 
+  : 0;
 ```
 
-#### Common Import Errors & Solutions
-
-**Error: "ICCID too short"**
-- **Cause:** ICCID < 19 characters
-- **Solution:** Pastikan ICCID 19-20 digit, no spaces
-- **Example:**
-  - ❌ Bad: `896209021234` (12 digits)
-  - ✅ Good: `8962090212345678901` (19 digits)
-
-**Error: "Phone number duplicate"**
-- **Cause:** Phone number sudah ada di database
-- **Solution:** Ubah phone number atau skip row
-- **Tip:** Export existing data dulu untuk cek duplicate
-
-**Error: "IMEI already in use"**
-- **Cause:** IMEI sudah digunakan SIM card lain yang aktif
-- **Solution:**
-  - Option 1: Gunakan IMEI lain
-  - Option 2: Deactivate SIM yang menggunakan IMEI tersebut
-  - Option 3: Leave IMEI blank (if status allows)
-
-**Error: "Missing Current IMEI for ACTIVATED status"**
-- **Cause:** Status ACTIVATED/INSTALLED butuh IMEI
-- **Solution:** Isi kolom Current IMEI dengan 15 digit number
-- **Example:** `123456789012345`
-
-**Error: "Invalid Status"**
-- **Cause:** Status bukan salah satu dari enum values
-- **Solution:** Gunakan exact text:
-  - ✅ `WAREHOUSE`
-  - ✅ `ACTIVATED`
-  - ✅ `INSTALLED`
-  - ✅ `BILLING`
-  - ✅ `GRACE_PERIOD`
-  - ✅ `DEACTIVATED`
-  - ❌ `Active`, `Aktif`, `active`, `ACTIVE`
-
-**Error: "Invalid date format"**
-- **Cause:** Date format bukan YYYY-MM-DD
-- **Solution:** Format ulang dates di Excel:
-  1. Select date column
-  2. Format Cells → Custom
-  3. Type: `yyyy-mm-dd`
-  4. Example: `2026-01-12`
-
-#### Bulk Import Strategy
-
-**For Large Datasets (1000+ rows):**
-
-1. **Split into Batches**
-   - Import 500-1000 rows per batch
-   - Easier to manage errors
-   - Less chance of timeout
-
-2. **Import Order by Status**
-   - Batch 1: WAREHOUSE status (simplest)
-   - Batch 2: ACTIVATED status (needs IMEI)
-   - Batch 3: INSTALLED status (needs dates)
-   - Batch 4: BILLING/GRACE_PERIOD (needs billing info)
-
-3. **Verify Between Batches**
-   - Check dashboard stats after each batch
-   - Verify counts match expected
-   - Fix errors before next batch
-
-#### Excel Tips & Tricks
-
-**1. Remove Duplicates**
+**Contoh Konkret:**
 ```
-Excel: Data → Remove Duplicates
-Select ICCID column → OK
+Periode: 01 Dec 2025 - 31 Dec 2025
+
+Data (200 SIM cards total):
+- WAREHOUSE: 31 cards ✅ (aktif)
+- ACTIVATED: 15 cards ✅ (aktif)
+- INSTALLED: 120 cards ✅ (aktif)
+- BILLING: 18 cards ✅ (aktif)
+- GRACE_PERIOD: 8 cards ✅ (aktif)
+- DEACTIVATED: 8 cards ❌ (tidak aktif)
+
+Calculation:
+Active Cards = 31 + 15 + 120 + 18 + 8 = 192
+Total Cards = 200
+Active Rate = (192 / 200) × 100% = 96%
+
+Result: Active Rate = 96%
 ```
 
-**2. Validate Data dengan Conditional Formatting**
-```
-Select ICCID column
-Conditional Formatting → Highlight Cells Rules → Greater Than
-Value: 18 (untuk highlight <19 chars)
-```
+**Interpretasi:**
+- **Sangat Baik (>90%)**: High utilization, minimal waste
+- **Baik (80-90%)**: Good utilization, acceptable level
+- **Perlu Perhatian (70-80%)**: Moderate utilization, investigate causes
+- **Buruk (<70%)**: Low utilization, significant waste, action required
 
-**3. Quick Fill IMEIs**
+**Business Impact:**
 ```
-If you need unique IMEIs:
-First cell: 123456789012345
-Second cell: =A1+1
-Drag down for sequence
-```
+Example:
+- 200 SIM cards total
+- 96% active rate = 192 active SIMs
+- 4% inactive rate = 8 deactivated SIMs
 
-**4. Convert Text to Number**
-```
-If ICCID/Phone treated as text:
-=VALUE(A2)
-Or: Text to Columns → Finish
+If monthly cost per SIM = Rp 150,000
+Deactivated SIM cost impact = 8 × Rp 150,000 = Rp 1,200,000/month (wasted)
+
+Annual impact = Rp 1,200,000 × 12 = Rp 14,400,000/year
 ```
 
 ---
 
-## 🔧 Troubleshooting
+#### **C. Deactivated (dalam periode)**
 
-### Common Issues & Solutions
+**Fungsi:**
+- Menghitung jumlah SIM cards yang di-deactivate dalam periode yang dipilih
 
-#### 1. **Preview Tidak Loading / Blank Screen**
+**Logic & Perhitungan:**
+```typescript
+// Formula
+Deactivated = COUNT(sim_cards WHERE 
+  deactivation_date BETWEEN startDate AND endDate
+)
 
-**Symptoms:**
-- Dashboard tidak muncul
-- Halaman putih kosong
-- Loading forever
-
-**Solutions:**
-
-**A. Clear Browser Cache**
-```
-Chrome/Edge:
-1. Ctrl+Shift+Delete
-2. Select "Cached images and files"
-3. Clear data
-4. Refresh (Ctrl+Shift+R)
-```
-
-**B. Restart Next.js Server**
-```
-Method 1 (via Softgen interface):
-1. Click settings icon (top-right)
-2. Click "Restart Server" button
-3. Wait for server to restart
-4. Refresh browser
-
-Method 2 (manual):
-Terminal: pm2 restart all
+// Contoh Implementasi
+const deactivatedCards = simCards.filter(sim => {
+  if (!sim.deactivation_date) return false;
+  const deactivationDate = new Date(sim.deactivation_date);
+  return deactivationDate >= new Date(startDate) && 
+         deactivationDate <= new Date(endDate);
+}).length;
 ```
 
-**C. Check Console for Errors**
+**Contoh Konkret:**
 ```
-1. Press F12 (open DevTools)
-2. Go to Console tab
-3. Look for red error messages
-4. Share error with support if needed
-```
+Periode: 01 Dec 2025 - 31 Dec 2025
 
-#### 2. **Data Tidak Muncul di Tabel**
+Data:
+- SIM A: deactivation_date = "2025-12-05" ✅ (dalam periode)
+- SIM B: deactivation_date = "2025-12-20" ✅ (dalam periode)
+- SIM C: deactivation_date = "2025-11-25" ❌ (di luar periode)
+- SIM D: deactivation_date = "2025-12-31" ✅ (dalam periode)
+- SIM E: deactivation_date = null ❌ (tidak deactivated)
 
-**Symptoms:**
-- Tabel kosong
-- "No data available" message
-- Stats cards show 0
-
-**Solutions:**
-
-**A. Check Supabase Connection**
-```
-1. Verify .env.local file exists
-2. Check NEXT_PUBLIC_SUPABASE_URL
-3. Check NEXT_PUBLIC_SUPABASE_ANON_KEY
-4. Both should not be "invalid_anon_key"
+Result: Deactivated = 3
 ```
 
-**B. Check Browser Console**
+**Interpretasi & Trend Analysis:**
 ```
-F12 → Console
-Look for API errors like:
-- "401 Unauthorized"
-- "Failed to fetch"
-- "Network error"
-```
-
-**C. Verify Database**
-```
-1. Go to Supabase dashboard
-2. Check if tables exist:
-   - sim_cards
-   - devices
-   - customers
-   - installations
-   - status_history
-3. Check if data exists in tables
-```
-
-#### 3. **Form Validation Errors**
-
-**Error: "ICCID must be 19-20 characters"**
-- **Check:** Length of ICCID input
-- **Solution:** Add/remove digits to make 19-20 chars
-- **Tip:** Use Excel LEN() formula to verify before import
-
-**Error: "Phone number already exists"**
-- **Check:** Duplicate phone number in database
-- **Solution:** Use different phone number
-- **Tip:** Export data first to check existing phones
-
-**Error: "IMEI ini sudah terikat dengan kartu aktif lain!"**
-- **Cause:** IMEI already used by another active SIM
-- **Solution:**
-  - Option 1: Use different IMEI
-  - Option 2: Deactivate the other SIM first
-  - Option 3: Leave IMEI blank (if status allows)
-
-**Error: "Current IMEI required for ACTIVATED status"**
-- **Cause:** Trying to set status ACTIVATED without IMEI
-- **Solution:** Fill in Current IMEI field (15 digits)
-
-#### 4. **Date & Time Issues**
-
-**Symptoms:**
-- Dates showing wrong day
-- Time 7 hours behind
-- Chart data in wrong months
-
-**Cause:**
-- Timezone mismatch (UTC vs WIB)
-
-**Verification:**
-```
-All dates should use WIB (UTC+7) timezone
-
-Check:
-1. Dashboard charts → Should show current month correctly
-2. SIM activation date → Should match today when created
-3. Export timestamps → Should show +07:00 timezone
-```
-
-**Solution:**
-- System already uses WIB timezone
-- If still incorrect, contact support
-- Provide screenshot of date discrepancy
-
-#### 5. **Import Excel Fails**
-
-**Error: "File format not supported"**
-- **Cause:** Not .xlsx or .xls file
-- **Solution:** Save Excel as .xlsx format
-- **Steps:**
-  ```
-  Excel: File → Save As
-  File type: Excel Workbook (*.xlsx)
-  ```
-
-**Error: "Template headers don't match"**
-- **Cause:** Column headers modified
-- **Solution:**
-  1. Download fresh template
-  2. Copy data to new template
-  3. Don't modify header row
-
-**Error: "Too many invalid rows"**
-- **Cause:** Data validation errors
-- **Solution:**
-  1. Download error report
-  2. Fix errors in Excel
-  3. Re-upload file
-
-#### 6. **Performance Issues**
-
-**Symptoms:**
-- Slow loading
-- Lag when typing
-- Charts take long to render
-
-**Solutions:**
-
-**A. Reduce Data Load**
-```
-1. Use date range filter
-2. Filter by status
-3. Limit to recent data
-```
-
-**B. Close Unused Browser Tabs**
-```
-App uses browser memory
-Close other tabs to free RAM
-```
-
-**C. Clear Browser Data**
-```
-1. Clear cache (Ctrl+Shift+Delete)
-2. Clear cookies
-3. Restart browser
-```
-
-#### 7. **Export Not Working**
-
-**Error: "Export failed"**
-- **Cause:** Browser blocked download
-- **Solution:**
-  1. Check browser download settings
-  2. Allow downloads from site
-  3. Try different browser
-
-**Error: "File is empty"**
-- **Cause:** No data to export
-- **Solution:**
-  1. Check if any SIM cards exist
-  2. Clear filters if applied
-  3. Verify data loaded in table
-
----
-
-## ❓ FAQ (Frequently Asked Questions)
-
-### General Questions
-
-**Q: Apa itu BKT-SimCare?**
-A: BKT-SimCare adalah sistem manajemen kartu SIM terpusat untuk melacak lifecycle SIM card dari warehouse hingga deaktivasi, termasuk device assignment, customer management, dan billing tracking.
-
-**Q: Apakah ada biaya untuk menggunakan aplikasi ini?**
-A: Hubungi admin/manajemen untuk informasi pricing dan licensing.
-
-**Q: Browser apa yang didukung?**
-A: 
-- ✅ Chrome (recommended)
-- ✅ Firefox
-- ✅ Safari
-- ✅ Edge (Chromium)
-- ❌ Internet Explorer (not supported)
-
-**Q: Apakah bisa akses dari mobile?**
-A: Ya, aplikasi responsive dan bisa diakses dari mobile browser. Namun, untuk experience terbaik disarankan menggunakan desktop/laptop untuk input data dan management tasks.
-
----
-
-### SIM Card Management
-
-**Q: Apa perbedaan ACTIVATED vs INSTALLED?**
-A: 
-- **ACTIVATED**: SIM sudah diaktivasi provider tapi belum dipasang di device (disebut "Ghost SIM")
-- **INSTALLED**: SIM sudah dipasang dan berfungsi di device
-
-**Q: Kenapa ada kategori "Ghost SIM Card"?**
-A: Ghost SIM adalah SIM yang statusnya ACTIVATED (sudah aktif) tapi belum INSTALLED (belum terpasang di device). Ini penting untuk tracking SIM yang activated tapi belum productive.
-
-**Q: Apa itu Grace Period?**
-A: Grace Period adalah masa tenggang 30 hari setelah billing cycle jika pembayaran terlambat. Setelah grace period, SIM harus dibayar atau akan deactivated.
-
-**Q: Bisakah SIM yang DEACTIVATED diaktifkan lagi?**
-A: Tidak. Status DEACTIVATED adalah final/permanent. Jika perlu menggunakan nomor yang sama, harus request SIM baru ke provider.
-
-**Q: Kenapa IMEI penting?**
-A: IMEI (International Mobile Equipment Identity) adalah unique identifier untuk device. System enforce rule: **Satu IMEI hanya bisa digunakan oleh satu SIM aktif** untuk mencegah konflik dan tracking yang akurat.
-
-**Q: Bagaimana cara menghapus SIM card?**
-A: Saat ini tidak ada fitur delete. Best practice: Ubah status ke DEACTIVATED dengan reason "Deleted/Removed" agar tetap ada audit trail.
-
----
-
-### Date & Time
-
-**Q: Timezone apa yang digunakan?**
-A: Semua date dan time menggunakan **WIB (Waktu Indonesia Barat / UTC+7)**. Ini termasuk:
-- Timestamps di database
-- Date inputs di forms
-- Chart calculations
-- Export timestamps
-
-**Q: Kenapa tanggal di chart tidak sesuai?**
-A: Pastikan:
-1. Browser timezone set ke Indonesia/Jakarta
-2. System time computer benar
-3. Refresh browser dengan Ctrl+Shift+R
-Jika masih salah, screenshot dan hubungi support.
-
-**Q: Format tanggal apa yang digunakan untuk import Excel?**
-A: Format: **YYYY-MM-DD**
-- ✅ Correct: `2026-01-12`
-- ❌ Wrong: `12/01/2026`, `12-01-2026`, `01/12/2026`
-
----
-
-### Import & Export
-
-**Q: Berapa maksimal rows untuk import Excel?**
-A: Recommended: 500-1000 rows per batch. Untuk lebih banyak, split menjadi multiple batches untuk menghindari timeout dan easier error management.
-
-**Q: Apa yang terjadi jika ada duplicate ICCID saat import?**
-A: Row dengan duplicate ICCID akan di-skip dan muncul di error report. ICCID harus unique di sistem.
-
-**Q: Bisakah update data via import Excel?**
-A: Saat ini import hanya untuk add new SIM cards. Untuk update, gunakan Edit function di web interface atau export → edit → re-import (after deleting old records via DEACTIVATED status).
-
-**Q: Format apa yang didukung untuk export?**
-A: 
-- ✅ Excel (.xlsx) - Via "Export" button
-- ✅ CSV (coming soon)
-- ✅ PDF (via Executive Summary)
-
-**Q: Apakah export meng-include filtered data only?**
-A: Ya! Export akan include data yang:
-- Match search query (jika ada)
-- Match status filter (jika applied)
-- Visible di current table view
-
----
-
-### Reports & Analytics
-
-**Q: Bagaimana cara melihat data untuk periode tertentu?**
-A: Gunakan Date Range Filter:
-1. Dashboard: Filter Periode Grafik card
-2. Executive Summary: Date range picker di top
-3. Pilih start & end date sesuai periode yang diinginkan
-
-**Q: Apa perbedaan Dashboard vs Executive Summary?**
-A:
-- **Dashboard**: Quick overview, real-time stats, 6 bulan recent data
-- **Executive Summary**: Detailed analysis, custom date range, comprehensive reports, export functionality
-
-**Q: Bagaimana cara print report?**
-A: 
-1. Go to Executive Summary
-2. Set date range
-3. Export PDF
-4. Open PDF dan print (Ctrl+P)
-
----
-
-### Technical Issues
-
-**Q: Error "401 Unauthorized" muncul terus**
-A: 
-1. Check Supabase connection (settings)
-2. Verify API keys di .env.local
-3. Contact admin untuk refresh API keys
-
-**Q: Aplikasi slow / loading lama**
-A: 
-1. Clear browser cache (Ctrl+Shift+Delete)
-2. Close unused tabs
-3. Use date range filter to reduce data load
-4. Try different browser
-5. Check internet connection
-
-**Q: Preview tidak loading setelah edit file**
-A: 
-1. Click "Restart Server" button (Softgen interface, top-right settings)
-2. Wait 10-15 seconds
-3. Refresh browser (Ctrl+Shift+R)
-
-**Q: "IMEI sudah terikat dengan kartu aktif lain" - Bagaimana fix?**
-A: Option 1: Use different IMEI
-Option 2: Find SIM yang pakai IMEI tersebut → Edit → Deactivate
-Option 3: Edit SIM yang pakai IMEI → Clear IMEI field (set to blank)
-
----
-
-### Data Management
-
-**Q: Bagaimana cara backup data?**
-A: 
-1. Go to SIM Cards page
-2. Don't apply any filter (untuk export all)
-3. Click "Export" button
-4. Save .xlsx file sebagai backup
-5. Lakukan regular backup (weekly recommended)
-
-**Q: Bagaimana cara restore data dari backup?**
-A: 
-1. **HATI-HATI**: Import akan ADD data, bukan replace
-2. Jika perlu restore completely:
-   - Deactivate semua SIM existing (via bulk edit - coming soon)
-   - Import dari backup file
-3. Or contact admin untuk database restore dari server backup
-
-**Q: Apakah ada limit jumlah SIM yang bisa disimpan?**
-A: Tidak ada hard limit. System dapat handle ribuan SIM cards. Performance optimal hingga 10,000+ records.
-
----
-
-### User Access & Security
-
-**Q: Apakah ada role/permission management?**
-A: Saat ini semua user punya full access. Role-based access control (RBAC) akan datang di versi berikutnya.
-
-**Q: Bagaimana cara add user baru?**
-A: Contact system administrator untuk add user ke Supabase dan grant akses aplikasi.
-
-**Q: Apakah data aman?**
-A: Ya. Data disimpan di Supabase (PostgreSQL) dengan:
-- ✅ SSL/TLS encryption
-- ✅ Row Level Security (RLS) policies
-- ✅ Automatic backups
-- ✅ Enterprise-grade security
-
----
-
-## 📞 Support & Contact
-
-### Mendapatkan Bantuan
-
-**Jika mengalami masalah:**
-
-1. **Check Troubleshooting Section**
-   - Baca bagian Troubleshooting di manual ini
-   - 90% masalah umum sudah tercakup di sana
-
-2. **Check FAQ**
-   - Baca FAQ section
-   - Search keyword masalah Anda
-
-3. **Check Browser Console**
-   - Press F12
-   - Go to Console tab
-   - Screenshot error messages (jika ada)
-
-4. **Contact Support**
-   - Email: support@bkt-simcare.com
-   - Provide:
-     - Screenshot masalah
-     - Browser console errors (jika ada)
-     - Steps to reproduce
-     - Browser & OS version
-
-### Reporting Bugs
-
-**Format Bug Report:**
-
-```
-**Bug Title**: [Short description]
-
-**Steps to Reproduce**:
-1. Go to [page]
-2. Click [button]
-3. See error
-
-**Expected Behavior**:
-[What should happen]
-
-**Actual Behavior**:
-[What actually happened]
-
-**Screenshots**:
-[Attach screenshots]
-
-**Browser**: Chrome 120 / Firefox 121 / etc
-**OS**: Windows 11 / macOS 14 / etc
-**Date & Time**: 12 Jan 2026, 12:44 WIB
-```
-
-### Feature Requests
-
-**Ada idea untuk fitur baru?**
-
-Submit feature request:
-- Email: features@bkt-simcare.com
-- Include:
-  - Feature description
-  - Use case / problem it solves
-  - Priority (Low/Medium/High)
-  - Mockup/wireframe (jika ada)
-
----
-
-## 📚 Appendix
-
-### A. Glossary (Istilah Penting)
-
-**ICCID** (Integrated Circuit Card Identifier)
-- Nomor unik kartu SIM (19-20 digit)
-- Contoh: 8962090212345678901
-
-**IMEI** (International Mobile Equipment Identity)
-- Nomor unik device hardware (15 digit)
-- Contoh: 123456789012345
-
-**SIM Card**
-- Subscriber Identity Module
-- Kartu yang dipasang di device untuk koneksi cellular
-
-**Ghost SIM**
-- SIM dengan status ACTIVATED tapi belum INSTALLED
-- Sudah aktif tapi belum productive/terpasang
-
-**Grace Period**
-- Masa tenggang 30 hari setelah billing
-- Untuk pembayaran yang terlambat
-
-**Provider**
-- Operator seluler (Telkomsel, Indosat, XL, dll)
-
-**Lifecycle**
-- Siklus hidup SIM: WAREHOUSE → ACTIVATED → INSTALLED → BILLING → GRACE_PERIOD → DEACTIVATED
-
-**WIB** (Waktu Indonesia Barat)
-- Timezone UTC+7
-- Digunakan untuk semua timestamps di sistem
-
----
-
-### B. Status Lifecycle Diagram
-
-```
-                    START
-                      ↓
-            ┌──────────────────┐
-            │   WAREHOUSE      │ Stock gudang
-            │  (Stok Gudang)   │ Belum aktif
-            └────────┬─────────┘
-                     ↓
-            ┌──────────────────┐
-            │   ACTIVATED      │ Sudah aktif
-            │  (Ghost SIM)     │ Belum terpasang
-            └────────┬─────────┘
-                     ↓
-            ┌──────────────────┐
-            │   INSTALLED      │ Terpasang di device
-            │  (Terinstall)    │ Sudah productive
-            └────────┬─────────┘
-                     ↓
-            ┌──────────────────┐
-            │    BILLING       │ Dalam billing cycle
-            │  (Normal usage)  │ Pembayaran rutin
-            └────────┬─────────┘
-                     ↓
-            ┌──────────────────┐
-            │  GRACE_PERIOD    │ Masa tenggang
-            │ (30 hari buffer) │ Payment warning
-            └────────┬─────────┘
-                     ↓
-            ┌──────────────────┐
-            │  DEACTIVATED     │ Nonaktif permanent
-            │   (Terminated)   │ End of lifecycle
-            └──────────────────┘
-                     ↓
-                     END
+Monthly Deactivation Trend:
+- Nov 2025: 2 deactivated (low, normal)
+- Dec 2025: 3 deactivated (low, normal)
+- Jan 2026: 12 deactivated (high, investigate!)
+
+Red Flag Indicators:
+- Sudden spike (>50% increase) = Problem indicator
+- Consistent high rate = Systematic issue
+- Pattern correlation = Identify root cause (provider, device, customer)
 ```
 
 ---
 
-### C. Quick Reference Card
+### **2️⃣ STATUS BREAKDOWN CHART**
 
-**Keyboard Shortcuts:**
-- `Ctrl + Shift + R`: Hard refresh browser
-- `F12`: Open DevTools
-- `Ctrl + F`: Find in page
-- `Ctrl + P`: Print page
-- `Esc`: Close dialog/modal
+**Fungsi:**
+- Visualisasi distribusi SIM cards berdasarkan status lifecycle
 
-**Common Tasks:**
+**Logic & Perhitungan:**
+```typescript
+// Formula untuk setiap status
+Status Count = COUNT(sim_cards WHERE status = [STATUS] AND 
+  created_at <= endDate
+)
 
-| Task | Steps |
-|------|-------|
-| Add SIM | SIM Cards → + Add → Fill form → Save |
-| Edit SIM | SIM Cards → ✏️ Edit → Update → Save |
-| View Detail | SIM Cards → 📄 View |
-| Filter Status | SIM Cards → Status dropdown → Select |
-| Search | SIM Cards → Search box → Type → Enter |
-| Export | SIM Cards → Export button |
-| Import | SIM Cards → Import Excel → Upload file |
-| View Dashboard | Click "Dashboard" in navbar |
-| View Reports | Click "Executive Summary" in navbar |
+// Data Structure
+statusData = [
+  { status: "WAREHOUSE", count: 31, color: "#f97316" },
+  { status: "ACTIVATED", count: 15, color: "#a855f7" },
+  { status: "INSTALLED", count: 120, color: "#22c55e" },
+  { status: "BILLING", count: 18, color: "#3b82f6" },
+  { status: "GRACE_PERIOD", count: 8, color: "#eab308" },
+  { status: "DEACTIVATED", count: 8, color: "#ef4444" }
+]
+```
+
+**Contoh Konkret:**
+```
+Total: 200 SIM Cards
+
+Status Distribution:
+┌──────────────┬───────┬─────────┬────────────────┐
+│ Status       │ Count │ Percent │ Bar Visual     │
+├──────────────┼───────┼─────────┼────────────────┤
+│ INSTALLED    │ 120   │  60%    │ ████████████   │ ← Majority (Good!)
+│ WAREHOUSE    │  31   │  15.5%  │ ███            │ ← Stock reserve
+│ BILLING      │  18   │   9%    │ ██             │ ← Normal cycle
+│ ACTIVATED    │  15   │  7.5%   │ ██             │ ← Ghost SIMs (Investigate)
+│ GRACE_PERIOD │   8   │   4%    │ █              │ ← Payment warning
+│ DEACTIVATED  │   8   │   4%    │ █              │ ← Terminated
+└──────────────┴───────┴─────────┴────────────────┘
+```
+
+**Analisis Distribusi Ideal:**
+```
+IDEAL DISTRIBUTION (for healthy operation):
+┌──────────────┬────────────┬────────┐
+│ Status       │ Ideal %    │ Status │
+├──────────────┼────────────┼────────┤
+│ INSTALLED    │ 60-70%     │ ✅ OK  │ ← Productive SIMs
+│ WAREHOUSE    │ 10-20%     │ ✅ OK  │ ← Buffer stock
+│ BILLING      │ 5-15%      │ ✅ OK  │ ← Normal cycle
+│ ACTIVATED    │ <5%        │ ⚠️ HIGH│ ← Ghost SIMs should be low
+│ GRACE_PERIOD │ <5%        │ ✅ OK  │ ← Payment issues minimal
+│ DEACTIVATED  │ <5%        │ ✅ OK  │ ← Churn rate acceptable
+└──────────────┴────────────┴────────┘
+
+RED FLAGS:
+- ACTIVATED >10% = Too many Ghost SIMs (not installed)
+- WAREHOUSE <5% = Stock too low, risk of shortage
+- GRACE_PERIOD >10% = Payment collection issues
+- DEACTIVATED >15% = High churn rate, investigate causes
+```
+
+**Business Insights:**
+```
+Example Analysis (from chart above):
+
+✅ POSITIVES:
+1. INSTALLED (60%): Good utilization, most SIMs productive
+2. WAREHOUSE (15.5%): Healthy buffer stock
+3. GRACE_PERIOD (4%): Low payment issues
+
+⚠️ CONCERNS:
+1. ACTIVATED (7.5% / 15 SIMs): Above ideal threshold
+   → Action: Investigate why Ghost SIMs not installed
+   → Possible causes: Installation delays, customer issues
+
+💡 RECOMMENDATIONS:
+1. Focus on installing the 15 Ghost SIMs (ACTIVATED)
+2. Monitor GRACE_PERIOD closely (8 SIMs at risk)
+3. Maintain WAREHOUSE stock at current level
+4. Analyze reasons for 8 deactivated SIMs
+```
 
 ---
 
-### D. Database Schema Reference
+### **3️⃣ MONTHLY TREND CHART**
 
-**Tables:**
+**Fungsi:**
+- Menampilkan trend aktivasi dan deaktivasi SIM cards per bulan dalam periode yang dipilih
 
-**sim_cards**
-- id (UUID, primary key)
-- iccid (TEXT, unique, 19-20 chars)
-- phone_number (TEXT, unique, 10-15 chars)
-- provider (TEXT)
-- status (ENUM)
-- current_imei (TEXT, 15 chars, unique when active)
-- activation_date (TIMESTAMP)
-- installation_date (TIMESTAMP)
-- billing_cycle_day (INTEGER, 1-31)
-- monthly_bill_amount (DECIMAL)
-- grace_period_start (TIMESTAMP)
-- deactivation_date (TIMESTAMP)
-- deactivation_reason (TEXT)
-- created_at (TIMESTAMP, WIB)
-- updated_at (TIMESTAMP, WIB)
+**Logic & Perhitungan:**
+```typescript
+// Generate months in date range
+const months = generateMonthsBetween(startDate, endDate);
 
-**devices** (Coming Soon)
-- id, imei, type, location, etc.
+// For each month, calculate:
+monthlyData = months.map(month => {
+  // Month boundaries (WIB timezone)
+  const monthStart = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  
+  // Count activations
+  const activations = simCards.filter(sim => {
+    const activationDate = new Date(sim.activation_date);
+    return activationDate >= monthStart && activationDate <= monthEnd;
+  }).length;
+  
+  // Count deactivations
+  const deactivations = simCards.filter(sim => {
+    const deactivationDate = new Date(sim.deactivation_date);
+    return deactivationDate >= monthStart && deactivationDate <= monthEnd;
+  }).length;
+  
+  return {
+    month: monthName,
+    activations: activations,
+    deactivations: deactivations,
+    netGrowth: activations - deactivations
+  };
+});
+```
 
-**customers** (Coming Soon)
-- id, name, email, phone, address, etc.
+**Contoh Konkret:**
+```
+Periode: Aug 2025 - Jan 2026 (6 months)
 
-**installations** (Coming Soon)
-- id, sim_card_id, device_id, customer_id, etc.
+Monthly Data:
+┌──────────┬─────────────┬──────────────┬────────────┐
+│ Month    │ Activations │ Deactivations│ Net Growth │
+├──────────┼─────────────┼──────────────┼────────────┤
+│ Agt 2025 │     25      │      5       │   +20      │ ✅ Good growth
+│ Sep 2025 │     30      │      8       │   +22      │ ✅ Accelerating
+│ Okt 2025 │     28      │      6       │   +22      │ ✅ Stable growth
+│ Nov 2025 │     32      │     10       │   +22      │ ✅ Strong growth
+│ Des 2025 │     35      │     12       │   +23      │ ✅ Peak season
+│ Jan 2026 │     20      │     15       │   +5       │ ⚠️ Slowing down
+└──────────┴─────────────┴──────────────┴────────────┘
 
-**status_history** (Coming Soon)
-- id, sim_card_id, old_status, new_status, changed_at, etc.
+Total: 170 activations, 56 deactivations, +114 net growth
+```
+
+**Visual Representation:**
+```
+Line Chart Visualization:
+
+35│                                    ●  Activations (Blue)
+30│              ●─────●─────●────────●
+25│        ●────┘                        
+20│                                 ●
+15│                                       ●  Deactivations (Red)
+10│                    ●────────────●────┘
+ 5│  ●────●────●──────┘
+ 0└─────┴─────┴─────┴─────┴─────┴─────
+   Aug  Sep  Okt  Nov  Des  Jan
+
+Key Insights from chart:
+1. Activation trend: Upward until Dec, dip in Jan
+2. Deactivation trend: Gradually increasing
+3. Gap widening Sep-Dec = Strong growth period
+4. Gap narrowing in Jan = Warning sign
+```
+
+**Trend Analysis & Interpretation:**
+```
+HEALTHY TRENDS:
+✅ Activations > Deactivations consistently
+✅ Stable or increasing activation rate
+✅ Low and stable deactivation rate
+✅ Widening gap between lines = Growth acceleration
+
+WARNING SIGNS:
+⚠️ Activations declining month-over-month
+⚠️ Deactivations increasing significantly
+⚠️ Gap narrowing = Growth slowing
+⚠️ Lines crossing = Net negative growth
+
+RED FLAGS:
+🚨 Activations < Deactivations = Shrinking inventory
+🚨 Sharp activation drop (>30%) = Market/operational issue
+🚨 Sharp deactivation spike (>50%) = Service quality issue
+🚨 Consistent net negative = Business crisis
+```
+
+**Business Actions Based on Trends:**
+```
+SCENARIO 1: High Activations + Low Deactivations (Aug-Dec)
+├─ Status: ✅ Healthy growth
+├─ Action: Maintain current strategy
+└─ Monitor: Stock levels to ensure supply
+
+SCENARIO 2: Declining Activations (Jan)
+├─ Status: ⚠️ Slowing growth
+├─ Action: Investigate causes
+│   ├─ Seasonal effect?
+│   ├─ Marketing campaign ended?
+│   ├─ Competition increased?
+│   └─ Stock shortage?
+└─ Response: Boost marketing, check inventory
+
+SCENARIO 3: Increasing Deactivations (Jan)
+├─ Status: ⚠️ Higher churn
+├─ Action: Analyze deactivation reasons
+│   ├─ Service quality issues?
+│   ├─ Pricing concerns?
+│   ├─ Technical problems?
+│   └─ Customer satisfaction?
+└─ Response: Improve service, customer retention program
+
+SCENARIO 4: Lines Crossing (hypothetical)
+├─ Status: 🚨 Critical - Net negative growth
+├─ Action: Emergency response
+│   ├─ Executive review meeting
+│   ├─ Deep-dive analysis
+│   ├─ Immediate corrective actions
+│   └─ Customer feedback collection
+└─ Response: Strategic pivot, service improvement
+```
 
 ---
 
-### E. API Endpoints (For Developers)
+### **4️⃣ DATE RANGE FILTER**
 
-**Supabase API:**
+**Fungsi:**
+- Memfilter semua data dan chart berdasarkan periode waktu yang dipilih
 
+**Logic & Perhitungan:**
+```typescript
+// Default: Last 30 days from today (WIB timezone)
+const today = getTodayWIB();
+const defaultStartDate = new Date(today);
+defaultStartDate.setDate(defaultStartDate.getDate() - 30);
+
+// User can select custom range
+const [startDate, setStartDate] = useState(defaultStartDate.toISOString().split("T")[0]);
+const [endDate, setEndDate] = useState(today);
+
+// All calculations filter by this range
+const filteredData = allData.filter(item => {
+  const itemDate = new Date(item.created_at);
+  return itemDate >= new Date(startDate) && itemDate <= new Date(endDate);
+});
 ```
-Base URL: https://[your-project].supabase.co
 
-GET /rest/v1/sim_cards
-- List all SIM cards
-- Supports filtering, sorting, pagination
+**Contoh Skenario:**
+```
+SKENARIO A: Last 7 Days Analysis
+┌────────────────────────────────┐
+│ Start: 2026-01-05              │
+│ End:   2026-01-12              │
+└────────────────────────────────┘
 
-POST /rest/v1/sim_cards
-- Create new SIM card
-- Body: JSON with SIM data
+Use Case: Daily operations monitoring
+Result: Shows recent activity, quick pulse check
 
-PATCH /rest/v1/sim_cards?id=eq.[uuid]
-- Update SIM card
-- Body: JSON with updated fields
+SKENARIO B: Monthly Report (Dec 2025)
+┌────────────────────────────────┐
+│ Start: 2025-12-01              │
+│ End:   2025-12-31              │
+└────────────────────────────────┘
 
-DELETE /rest/v1/sim_cards?id=eq.[uuid]
-- Delete SIM card (soft delete recommended)
+Use Case: Monthly performance review
+Result: Complete month analysis, KPIs for reporting
+
+SKENARIO C: Quarterly Analysis (Q4 2025)
+┌────────────────────────────────┐
+│ Start: 2025-10-01              │
+│ End:   2025-12-31              │
+└────────────────────────────────┘
+
+Use Case: Quarterly business review
+Result: 3-month trends, strategic planning data
+
+SKENARIO D: Year-over-Year Comparison
+┌────────────────────────────────┐
+│ Period 1: 2024-01-01 to 2024-12-31 │
+│ Period 2: 2025-01-01 to 2025-12-31 │
+└────────────────────────────────┘
+
+Use Case: Annual performance comparison
+Result: Growth rate, trend changes, strategic insights
 ```
 
-**Authentication:**
+---
+
+### **5️⃣ EXPORT FUNCTIONALITY**
+
+#### **A. Export to CSV**
+
+**Fungsi:**
+- Export data summary dan detail ke CSV format untuk analysis di Excel
+
+**Data Structure:**
+```csv
+BKT-SimCare Executive Summary Report
+Export Date,2026-01-12T12:44:17.000+07:00
+Period,01 Desember 2025 - 31 Desember 2025
+
+Key Metrics
+Total SIM Cards,200
+Active Cards,192
+Active Rate,96%
+Deactivated Cards,8
+
+Status Breakdown
+Status,Count,Percentage
+WAREHOUSE,31,15.5%
+ACTIVATED,15,7.5%
+INSTALLED,120,60.0%
+BILLING,18,9.0%
+GRACE_PERIOD,8,4.0%
+DEACTIVATED,8,4.0%
+
+Monthly Trend
+Month,Activations,Deactivations,Net Growth
+Agt 2025,25,5,+20
+Sep 2025,30,8,+22
+Okt 2025,28,6,+22
+Nov 2025,32,10,+22
+Des 2025,35,12,+23
+Jan 2026,20,15,+5
 ```
-Headers:
-  apikey: [SUPABASE_ANON_KEY]
-  Authorization: Bearer [SUPABASE_ANON_KEY]
+
+**Use Cases:**
+- 📊 Pivot tables di Excel
+- 📈 Custom charts dan visualizations
+- 📧 Email reports ke stakeholders
+- 💾 Archive untuk historical analysis
+- 🔄 Import ke sistem BI tools
+
+#### **B. Export to PDF (Coming Soon)**
+
+**Fungsi:**
+- Export full report dengan charts ke PDF format untuk presentation
+
+**Content Structure:**
+```
+Page 1: Cover & Executive Summary
+├─ Company logo
+├─ Report title
+├─ Date range
+├─ Key metrics summary
+└─ Generated timestamp
+
+Page 2: Status Analysis
+├─ Status breakdown chart
+├─ Distribution table
+├─ Key insights
+└─ Recommendations
+
+Page 3: Trend Analysis
+├─ Monthly trend chart
+├─ Growth metrics
+├─ Trend interpretation
+└─ Action items
+
+Page 4: Detailed Data
+├─ Complete SIM list
+├─ Status details
+└─ Appendix
+```
+
+---
+
+### **6️⃣ USE CASES & SCENARIOS**
+
+#### **Use Case 1: Daily Operations Dashboard**
+```
+Persona: Operations Manager
+Frequency: Daily
+
+Steps:
+1. Open Executive Summary
+2. Set date range: Last 7 days
+3. Check Active Rate: Should be >90%
+4. Review Deactivated count: Should be <5/day
+5. Quick status check: Any concerning trends?
+
+Decision Points:
+- Active Rate <90% → Investigate causes
+- Deactivation spike → Emergency review
+- Ghost SIM (ACTIVATED) increase → Follow up installations
+```
+
+#### **Use Case 2: Weekly Management Review**
+```
+Persona: Department Head
+Frequency: Weekly (every Monday)
+
+Steps:
+1. Set date range: Last 7 days
+2. Compare with previous week
+3. Review KPIs:
+   - Total Cards growth
+   - Active Rate trend
+   - Deactivation rate
+4. Analyze Status Breakdown changes
+5. Export CSV for detailed analysis
+
+Deliverables:
+- Weekly summary email
+- KPI tracking spreadsheet
+- Action items for team
+```
+
+#### **Use Case 3: Monthly Business Review**
+```
+Persona: CEO / Management Team
+Frequency: Monthly
+
+Steps:
+1. Set date range: Full previous month
+2. Comprehensive analysis:
+   - Total inventory growth
+   - Utilization rate (Active Rate)
+   - Churn analysis (Deactivations)
+   - Cost optimization opportunities
+3. Export PDF report
+4. Present in management meeting
+
+Key Questions:
+- Are we meeting growth targets?
+- Is utilization improving?
+- What's causing deactivations?
+- Where can we optimize costs?
+```
+
+#### **Use Case 4: Quarterly Strategic Planning**
+```
+Persona: Executive Team
+Frequency: Quarterly
+
+Steps:
+1. Set date range: Full quarter (3 months)
+2. Deep analysis:
+   - Growth trajectory
+   - Market penetration
+   - Operational efficiency
+   - Financial impact
+3. Benchmark against targets
+4. Identify strategic initiatives
+
+Strategic Outputs:
+- Resource allocation decisions
+- Budget planning for next quarter
+- Process improvement initiatives
+- Investment priorities
+```
+
+#### **Use Case 5: Troubleshooting & Root Cause Analysis**
+```
+Persona: Technical Team
+Frequency: As needed (when issues detected)
+
+Scenario: Sudden spike in deactivations
+
+Steps:
+1. Set date range: Around spike period
+2. Analyze deactivation trend
+3. Check correlation with:
+   - Specific providers
+   - Device types
+   - Customer segments
+   - Time patterns
+4. Export detailed data
+5. Perform root cause analysis
+
+Investigation Flow:
+┌─────────────────────────┐
+│ Spike Detected: Dec 15  │
+├─────────────────────────┤
+│ 1. Check provider mix   │
+│    └─ Is it specific to │
+│       one provider?     │
+├─────────────────────────┤
+│ 2. Check device types   │
+│    └─ Is it specific to │
+│       certain devices?  │
+├─────────────────────────┤
+│ 3. Check customer data  │
+│    └─ Is it specific to │
+│       one customer?     │
+├─────────────────────────┤
+│ 4. Check time pattern   │
+│    └─ Time of day?      │
+│       Day of week?      │
+└─────────────────────────┘
+```
+
+---
+
+### **7️⃣ ADVANCED ANALYTICS TECHNIQUES**
+
+#### **A. Cohort Analysis**
+```
+Question: How long do SIM cards typically last before deactivation?
+
+Analysis:
+1. Group SIMs by activation month (cohort)
+2. Track deactivation over time
+3. Calculate average lifespan
+
+Example:
+Cohort: Aug 2025 Activations (25 SIMs)
+├─ Month 1 (Sep): 1 deactivated (4%)
+├─ Month 2 (Oct): 2 deactivated (8%)
+├─ Month 3 (Nov): 1 deactivated (4%)
+├─ Month 4 (Dec): 2 deactivated (8%)
+└─ Month 5 (Jan): 3 deactivated (12%)
+
+Total deactivated: 9 out of 25 (36%)
+Still active: 16 (64%)
+Average lifespan: 4.2 months (for deactivated SIMs)
+```
+
+#### **B. Churn Rate Calculation**
+```
+Formula:
+Monthly Churn Rate = (Deactivations in Month / Active SIMs at Start of Month) × 100%
+
+Example:
+Dec 2025:
+- Active SIMs at Dec 1: 180
+- Deactivations in Dec: 12
+- Churn Rate = (12 / 180) × 100% = 6.67%
+
+Benchmark:
+- Excellent: <2%
+- Good: 2-5%
+- Acceptable: 5-8%
+- Concerning: 8-10%
+- Critical: >10%
+
+Action Required:
+If churn rate >8% for 2 consecutive months:
+→ Emergency churn reduction program
+→ Customer retention initiatives
+→ Service quality audit
+```
+
+#### **C. Growth Rate Analysis**
+```
+Formula:
+Monthly Growth Rate = ((Ending SIMs - Starting SIMs) / Starting SIMs) × 100%
+
+Example:
+Dec 2025:
+- Starting SIMs (Dec 1): 180
+- Ending SIMs (Dec 31): 203
+- Growth Rate = ((203 - 180) / 180) × 100% = 12.78%
+
+Compound Monthly Growth Rate (CMGR) over 6 months:
+CMGR = ((Ending / Starting) ^ (1/months) - 1) × 100%
+
+Example:
+Aug 2025 - Jan 2026:
+- Starting (Aug 1): 150
+- Ending (Jan 31): 203
+- Months: 6
+- CMGR = ((203/150)^(1/6) - 1) × 100% = 5.16% per month
+```
+
+#### **D. Forecasting**
+```
+Simple Linear Forecast:
+Based on 6-month trend, predict next 3 months
+
+Historical data (activations):
+Agt: 25, Sep: 30, Okt: 28, Nov: 32, Des: 35, Jan: 20
+Average: 28.33 activations/month
+Trend: +2.5/month (average increase)
+
+Forecast:
+- Feb 2026: 22 (Jan + trend, considering seasonality)
+- Mar 2026: 25
+- Apr 2026: 27
+
+With 80% confidence interval: ±5 SIMs
+```
+
+---
+
+### **8️⃣ DASHBOARD BEST PRACTICES**
+
+#### **Daily Routine:**
+```
+Morning Check (5 minutes):
+1. Open Executive Summary
+2. Set range: Yesterday
+3. Quick metrics scan:
+   ✓ Any new deactivations?
+   ✓ Activations vs target?
+   ✓ Active rate stable?
+4. Flag anomalies for investigation
+```
+
+#### **Weekly Review:**
+```
+Monday Morning (15 minutes):
+1. Set range: Last 7 days
+2. Export CSV
+3. Update tracking spreadsheet
+4. Compare vs previous week
+5. Prepare team briefing
+6. Set weekly targets
+```
+
+#### **Monthly Reporting:**
+```
+End of Month (30 minutes):
+1. Set range: Full month
+2. Generate all reports
+3. Calculate key metrics
+4. Analyze trends
+5. Prepare management presentation
+6. Archive data
+```
+
+#### **Alert Thresholds:**
+```
+Set up monitoring for:
+🔴 CRITICAL:
+   - Active Rate drops below 85%
+   - Daily deactivations >10
+   - Ghost SIMs >15% of total
+
+🟡 WARNING:
+   - Active Rate 85-90%
+   - Daily deactivations 5-10
+   - Ghost SIMs 10-15% of total
+
+🟢 NORMAL:
+   - Active Rate >90%
+   - Daily deactivations <5
+   - Ghost SIMs <10% of total
 ```
 
 ---
