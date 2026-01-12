@@ -895,7 +895,7 @@ Installation Date: 2026-01-10
 
 ```excel
 ICCID: 896209021234 (❌ too short)
-Phone: 081234567890
+Phone: 0812345 (❌ too short)
 Status: WAREHOUSE
 ```
 
