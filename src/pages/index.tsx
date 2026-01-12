@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { Calendar } from "lucide-react";
+import { getMonthsBackRangeWIB, createWIBDate } from "@/lib/dateUtils";
 
 interface SimCard {
   id: string;
@@ -24,10 +25,9 @@ export default function Home() {
   const [simCards, setSimCards] = useState<SimCard[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Date range state - default to last 6 months
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
-    start: new Date(new Date().getFullYear(), new Date().getMonth() - 5, 1).toISOString().split('T')[0],
-    end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+  // Date range state - default to last 6 months (WIB timezone)
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
+    return getMonthsBackRangeWIB(5); // Last 6 months (current + 5 back)
   });
 
   useEffect(() => {
@@ -73,13 +73,13 @@ export default function Home() {
     };
   }, [simCards]);
 
-  // Calculate monthly data for charts based on date range
+  // Calculate monthly data for charts based on date range (WIB timezone)
   const chartData = useMemo(() => {
     if (simCards.length === 0) return [];
 
-    // Parse date range
-    const startDate = new Date(dateRange.start);
-    const endDate = new Date(dateRange.end);
+    // Parse date range using WIB timezone
+    const startDate = createWIBDate(dateRange.start);
+    const endDate = createWIBDate(dateRange.end);
 
     // Generate all months between start and end date
     const months: string[] = [];
@@ -98,7 +98,8 @@ export default function Home() {
       const year = monthDate.getFullYear();
       const monthIndex = monthDate.getMonth();
       
-      const monthStart = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+      // WIB timezone boundaries for the month
+      const monthStart = createWIBDate(`${year}-${String(monthIndex + 1).padStart(2, '0')}-01`);
       const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
 
       // Count SIMs that entered warehouse this month
@@ -115,8 +116,12 @@ export default function Home() {
         return deactivatedDate >= monthStart && deactivatedDate <= monthEnd;
       }).length;
 
-      // Format month name
-      const monthName = monthDate.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
+      // Format month name in Indonesian (WIB timezone)
+      const monthName = monthDate.toLocaleDateString("id-ID", { 
+        month: "short", 
+        year: "numeric",
+        timeZone: "Asia/Jakarta"
+      });
 
       return {
         month: monthName,
