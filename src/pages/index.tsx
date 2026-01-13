@@ -81,11 +81,12 @@ export default function Home() {
     const startDate = createWIBDate(dateRange.start);
     const endDate = createWIBDate(dateRange.end);
 
-    // Generate all months between start and end date
+    // Generate all months between start and end date (inclusive)
     const months: string[] = [];
     const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
     const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
 
+    // Only generate months up to and including the end date month
     while (current <= end) {
       const monthStr = current.toISOString().slice(0, 7); // "2026-01"
       months.push(monthStr);
