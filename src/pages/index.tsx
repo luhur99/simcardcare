@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { Calendar } from "lucide-react";
-import { getMonthsBackRangeWIB, createWIBDate } from "@/lib/dateUtils";
+import { getMonthsBackRangeWIB, createWIBDate, getFirstDayOfMonthWIB, getLastDayOfMonthWIB } from "@/lib/dateUtils";
 
 interface SimCard {
   id: string;
@@ -77,31 +77,56 @@ export default function Home() {
   const chartData = useMemo(() => {
     if (simCards.length === 0) return [];
 
-    // Parse date range using WIB timezone
-    const startDate = createWIBDate(dateRange.start);
-    const endDate = createWIBDate(dateRange.end);
+    // Parse date range strings directly to avoid timezone shift issues
+    const startParts = dateRange.start.split('-').map(Number);
+    const endParts = dateRange.end.split('-').map(Number);
+    
+    // Create start and end points (Year, Month index 0-11)
+    const startYear = startParts[0];
+    const startMonth = startParts[1] - 1;
+    
+    const endYear = endParts[0];
+    const endMonth = endParts[1] - 1;
 
-    // Generate all months between start and end date (inclusive)
-    const months: string[] = [];
-    const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-    const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-
-    // Only generate months up to and including the end date month
-    while (current <= end) {
-      const monthStr = current.toISOString().slice(0, 7); // "2026-01"
-      months.push(monthStr);
-      current.setMonth(current.getMonth() + 1);
+    // Generate month buckets
+    const months: { year: number; month: number; label: string }[] = [];
+    
+    let currentYear = startYear;
+    let currentMonth = startMonth;
+    
+    // Loop until we pass the end year/month
+    while (
+      currentYear < endYear || 
+      (currentYear === endYear && currentMonth <= endMonth)
+    ) {
+      // Create a date object just for formatting the label
+      // Use middle of the month (15th) to avoid edge cases
+      const labelDate = new Date(currentYear, currentMonth, 15);
+      const monthName = labelDate.toLocaleDateString("id-ID", { 
+        month: "short", 
+        year: "numeric",
+      });
+      
+      months.push({
+        year: currentYear,
+        month: currentMonth,
+        label: monthName
+      });
+      
+      // Increment month
+      if (currentMonth === 11) {
+        currentMonth = 0;
+        currentYear++;
+      } else {
+        currentMonth++;
+      }
     }
 
-    // Calculate stats for each month
-    const monthlyData = months.map(month => {
-      const monthDate = new Date(month + "-01");
-      const year = monthDate.getFullYear();
-      const monthIndex = monthDate.getMonth();
-      
-      // WIB timezone boundaries for the month
-      const monthStart = createWIBDate(`${year}-${String(monthIndex + 1).padStart(2, '0')}-01`);
-      const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+    // Calculate stats for each month bucket
+    const monthlyData = months.map(({ year, month, label }) => {
+      // Get precise WIB boundaries for this month
+      const monthStart = getFirstDayOfMonthWIB(year, month);
+      const monthEnd = getLastDayOfMonthWIB(year, month);
 
       // Count SIMs that entered warehouse this month
       const warehouseCount = simCards.filter(sim => {
@@ -117,15 +142,8 @@ export default function Home() {
         return deactivatedDate >= monthStart && deactivatedDate <= monthEnd;
       }).length;
 
-      // Format month name in Indonesian (WIB timezone)
-      const monthName = monthDate.toLocaleDateString("id-ID", { 
-        month: "short", 
-        year: "numeric",
-        timeZone: "Asia/Jakarta"
-      });
-
       return {
-        month: monthName,
+        month: label,
         warehouse: warehouseCount,
         deactivated: deactivatedCount
       };
