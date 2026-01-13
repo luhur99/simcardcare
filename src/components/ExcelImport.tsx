@@ -33,6 +33,7 @@ interface ExcelImportProps {
   templateColumns: { key: string; label: string; example: string }[];
   entityName: string;
   downloadTemplateName: string;
+  instructions?: { field: string; description: string; validation?: string }[];
 }
 
 export function ExcelImport({
@@ -42,6 +43,7 @@ export function ExcelImport({
   templateColumns,
   entityName,
   downloadTemplateName,
+  instructions,
 }: ExcelImportProps) {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -143,7 +145,28 @@ export function ExcelImport({
 
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.utils.book_append_sheet(wb, ws, "Data Template");
+
+    // Add Instructions Sheet if provided
+    if (instructions && instructions.length > 0) {
+      const instructionData = instructions.map(i => ({
+        "Nama Kolom": i.field,
+        "Keterangan": i.description,
+        "Format/Validasi": i.validation || "-"
+      }));
+      const wsInstructions = XLSX.utils.json_to_sheet(instructionData);
+      
+      // Auto-width for instruction columns
+      const wscols = [
+        { wch: 20 }, // Field
+        { wch: 50 }, // Description
+        { wch: 30 }  // Validation
+      ];
+      wsInstructions['!cols'] = wscols;
+
+      XLSX.utils.book_append_sheet(wb, wsInstructions, "Panduan Pengisian");
+    }
+
     XLSX.writeFile(wb, `${downloadTemplateName}_template.xlsx`);
   };
 
