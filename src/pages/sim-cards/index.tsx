@@ -517,24 +517,40 @@ export default function SimCardsPage() {
       const rowNum = i + 2;
 
       try {
-        let phoneNumber = String(row["No SIM Card"] || row["No Simcard"] || row["Phone Number"] || row["Nomor Telepon"] || "").trim();
+        // Essential fields
+        let phoneNumber = String(row["Phone Number"] || row["Nomor Telepon"] || row["No SIM Card"] || "").trim();
         const iccid = String(row["ICCID"] || "").trim();
         const provider = String(row["Provider"] || row["Operator"] || "").trim();
-        const packageName = String(row["Package"] || row["Paket"] || "").trim();
-        const monthlyCost = String(row["Monthly Cost"] || row["Biaya Bulanan"] || "0").trim();
+        
+        // Additional fields matching Add Form
+        const packageName = String(row["Package"] || row["Paket"] || row["Plan Name"] || "").trim();
+        const purchaseDateStr = String(row["Purchase Date"] || row["Tanggal Pembelian"] || "").trim();
+        const billingCycleStr = String(row["Billing Cycle Day"] || row["Tanggal Tagihan"] || "").trim();
+        const monthlyCostStr = String(row["Monthly Cost"] || row["Biaya Bulanan"] || "0").trim();
         const status = String(row["Status"] || "WAREHOUSE").toUpperCase().trim();
+        const notes = String(row["Notes"] || row["Catatan"] || "").trim();
 
         if (!phoneNumber) {
           errors.push({
             row: rowNum,
-            field: "No SIM Card",
+            field: "Phone Number",
             message: "Phone number is required",
             value: phoneNumber
           });
           continue;
         }
 
-        // Format phone number using the same function
+        if (!provider) {
+           errors.push({
+            row: rowNum,
+            field: "Provider",
+            message: "Provider is required",
+            value: provider
+          });
+          continue;
+        }
+
+        // Format phone number
         phoneNumber = formatPhoneNumber(phoneNumber);
 
         if (existingPhoneNumbers.has(phoneNumber)) {
@@ -549,23 +565,44 @@ export default function SimCardsPage() {
 
         importPhoneNumbers.add(phoneNumber);
 
+        // Parse Date (Simple YYYY-MM-DD check or Excel serial date if needed, basic string for now)
+        // If it's an Excel serial date number, simple parsing might be needed, but assuming string YYYY-MM-DD for simplicity
+        let purchaseDate = null;
+        if (purchaseDateStr) {
+            // Basic validation for YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(purchaseDateStr)) {
+                purchaseDate = purchaseDateStr;
+            }
+        }
+
+        // Parse Billing Cycle
+        let billingCycleDay = null;
+        if (billingCycleStr) {
+            const day = parseInt(billingCycleStr);
+            if (!isNaN(day) && day >= 1 && day <= 31) {
+                billingCycleDay = day;
+            }
+        }
+
         const simData = {
           phone_number: phoneNumber,
           iccid: iccid || null,
-          provider: provider || null,
+          provider: provider,
           plan_name: packageName || null,
+          purchase_date: purchaseDate,
+          billing_cycle_day: billingCycleDay,
           status: ["WAREHOUSE", "ACTIVATED", "INSTALLED", "BILLING", "GRACE_PERIOD", "DEACTIVATED"].includes(status) 
             ? status 
             : "WAREHOUSE",
           current_imei: null,
-          monthly_cost: monthlyCost ? parseFloat(monthlyCost.replace(/[^0-9.-]/g, "")) : 0,
+          monthly_cost: monthlyCostStr ? parseFloat(monthlyCostStr.replace(/[^0-9.-]/g, "")) : 0,
           activation_date: null,
           installation_date: null,
-          billing_cycle_day: null,
+          billing_cycle_source: null,
           deactivation_date: null,
           deactivation_reason: null,
           replacement_reason: null,
-          notes: null
+          notes: notes || null
         };
 
         successfulImports.push(simData);
@@ -1278,9 +1315,23 @@ export default function SimCardsPage() {
           { key: "Phone Number", label: "Phone Number", example: "081234567890" },
           { key: "ICCID", label: "ICCID", example: "8962..." },
           { key: "Provider", label: "Provider", example: "Telkomsel" },
-          { key: "Package", label: "Package", example: "25GB" },
+          { key: "Package", label: "Plan Name", example: "Halo 25GB" },
+          { key: "Purchase Date", label: "Purchase Date", example: "2024-01-30" },
+          { key: "Billing Cycle Day", label: "Billing Cycle Day", example: "1" },
           { key: "Monthly Cost", label: "Monthly Cost", example: "150000" },
-          { key: "Status", label: "Status", example: "WAREHOUSE" }
+          { key: "Status", label: "Status", example: "WAREHOUSE" },
+          { key: "Notes", label: "Notes", example: "Kartu cadangan" }
+        ]}
+        instructions={[
+            { field: "Phone Number", description: "Nomor telepon kartu SIM (Wajib).", validation: "Angka, min 10 digit. Contoh: 0812..." },
+            { field: "ICCID", description: "Nomor seri fisik kartu SIM.", validation: "Angka 16-20 digit." },
+            { field: "Provider", description: "Nama operator seluler (Wajib).", validation: "Teks. Contoh: Telkomsel, Indosat." },
+            { field: "Plan Name", description: "Nama paket data/langganan.", validation: "Teks bebas." },
+            { field: "Purchase Date", description: "Tanggal pembelian kartu.", validation: "Format: YYYY-MM-DD (Contoh: 2024-01-30)" },
+            { field: "Billing Cycle Day", description: "Tanggal tagihan bulanan.", validation: "Angka 1-31." },
+            { field: "Monthly Cost", description: "Biaya langganan per bulan.", validation: "Angka (Rupiah)." },
+            { field: "Status", description: "Status awal kartu SIM.", validation: "Pilihan: WAREHOUSE, ACTIVATED, INSTALLED." },
+            { field: "Notes", description: "Catatan tambahan.", validation: "Teks bebas." }
         ]}
       />
     </Layout>
