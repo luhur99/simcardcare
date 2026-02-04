@@ -1,0 +1,511 @@
+{
+  "info": {
+    "name": "BKT Simcard Care API",
+    "description": "Complete REST API Collection for BKT Simcard Care Application",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "bkt-simcard-care"
+  },
+  "item": [
+    {
+      "name": "SIM Cards",
+      "item": [
+        {
+          "name": "Get All SIM Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards"]
+            },
+            "description": "Get all SIM cards in the system"
+          },
+          "response": []
+        },
+        {
+          "name": "Get SIM Card by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/{{sim_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "{{sim_id}}"]
+            },
+            "description": "Get specific SIM card details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create SIM Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"081234567890\",\n  \"provider\": \"Telkomsel\",\n  \"plan_name\": \"Corporate 50GB\",\n  \"status\": \"WAREHOUSE\",\n  \"iccid\": \"89620012345678901234\",\n  \"billing_cycle_day\": 1,\n  \"monthly_cost\": 150000,\n  \"notes\": \"Batch 2026-Q1\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards"]
+            },
+            "description": "Create a new SIM card"
+          },
+          "response": []
+        },
+        {
+          "name": "Update SIM Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVATED\",\n  \"activation_date\": \"2026-02-04\",\n  \"notes\": \"Updated via API\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/{{sim_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "{{sim_id}}"]
+            },
+            "description": "Update SIM card details"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete/Deactivate SIM Card",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deactivation_date\": \"2026-02-04\",\n  \"reason\": \"Device rusak\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/{{sim_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "{{sim_id}}"]
+            },
+            "description": "Deactivate a SIM card"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "stats"]
+            },
+            "description": "Get dashboard statistics"
+          },
+          "response": []
+        }
+      ],
+      "description": "SIM Cards CRUD operations"
+    },
+    {
+      "name": "SIM Cards - Actions",
+      "item": [
+        {
+          "name": "Activate SIM Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{sim_id}}\",\n  \"activation_date\": \"2026-02-04\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/actions/activate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "actions", "activate"]
+            },
+            "description": "Quick action: Activate SIM card (WAREHOUSE → ACTIVATED)"
+          },
+          "response": []
+        },
+        {
+          "name": "Install SIM Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{sim_id}}\",\n  \"installation_date\": \"2026-02-10\",\n  \"imei\": \"123456789012345\",\n  \"free_pulsa_months\": 3,\n  \"use_installation_as_billing_cycle\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/actions/install",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "actions", "install"]
+            },
+            "description": "Quick action: Install SIM to device (ACTIVATED → INSTALLED)"
+          },
+          "response": []
+        },
+        {
+          "name": "Install SIM Card (Custom Billing Day)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{sim_id}}\",\n  \"installation_date\": \"2026-02-10\",\n  \"imei\": \"123456789012345\",\n  \"free_pulsa_months\": 3,\n  \"custom_billing_day\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/actions/install",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "actions", "install"]
+            },
+            "description": "Install SIM with custom billing cycle day"
+          },
+          "response": []
+        },
+        {
+          "name": "Enter Grace Period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{sim_id}}\",\n  \"action\": \"enter\",\n  \"grace_period_start_date\": \"2026-02-04\",\n  \"due_date\": \"2026-03-04\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/actions/grace-period",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "actions", "grace-period"]
+            },
+            "description": "Enter grace period for a SIM card"
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivate from Grace Period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{sim_id}}\",\n  \"action\": \"reactivate\",\n  \"activation_date\": \"2026-02-04\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sim-cards/actions/grace-period",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sim-cards", "actions", "grace-period"]
+            },
+            "description": "Reactivate SIM from grace period"
+          },
+          "response": []
+        }
+      ],
+      "description": "Quick action endpoints for SIM card lifecycle"
+    },
+    {
+      "name": "Providers",
+      "item": [
+        {
+          "name": "Get All Providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/providers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers"]
+            },
+            "description": "Get all providers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Provider by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/providers/{{provider_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers", "{{provider_id}}"]
+            },
+            "description": "Get specific provider by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Provider",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Telkomsel\",\n  \"contact_person\": \"Ahmad Santoso\",\n  \"contact_phone\": \"08123456789\",\n  \"contact_email\": \"ahmad@telkomsel.com\",\n  \"billing_cycle_day\": 1,\n  \"notes\": \"Corporate provider\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/providers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers"]
+            },
+            "description": "Create a new provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Provider",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact_person\": \"Budi Hartono\",\n  \"contact_phone\": \"08567891234\",\n  \"billing_cycle_day\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/providers/{{provider_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers", "{{provider_id}}"]
+            },
+            "description": "Update provider details"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Provider",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/providers/{{provider_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers", "{{provider_id}}"]
+            },
+            "description": "Delete a provider"
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Provider Status",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/providers/{{provider_id}}/toggle-status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "providers", "{{provider_id}}", "toggle-status"]
+            },
+            "description": "Toggle provider active/inactive status"
+          },
+          "response": []
+        }
+      ],
+      "description": "Provider management endpoints"
+    },
+    {
+      "name": "Devices",
+      "item": [
+        {
+          "name": "Get All Devices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/devices",
+              "host": ["{{base_url}}"],
+              "path": ["api", "devices"]
+            },
+            "description": "Get all devices (IMEI list)"
+          },
+          "response": []
+        }
+      ],
+      "description": "Device management endpoints"
+    },
+    {
+      "name": "Calculations",
+      "item": [
+        {
+          "name": "Calculate Daily Burden (All)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sim_card_id\": \"{{sim_id}}\",\n  \"calculation_type\": \"all\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/calculations/daily-burden",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calculations", "daily-burden"]
+            },
+            "description": "Calculate all costs (daily burden, grace period, free pulsa)"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Daily Burden Only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sim_card_id\": \"{{sim_id}}\",\n  \"calculation_type\": \"daily_burden\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/calculations/daily-burden",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calculations", "daily-burden"]
+            },
+            "description": "Calculate only overlap daily burden"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Grace Period Cost",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sim_card_id\": \"{{sim_id}}\",\n  \"calculation_type\": \"grace_period\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/calculations/daily-burden",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calculations", "daily-burden"]
+            },
+            "description": "Calculate only grace period cost"
+          },
+          "response": []
+        },
+        {
+          "name": "Calculate Free Pulsa Cost",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sim_card_id\": \"{{sim_id}}\",\n  \"calculation_type\": \"free_pulsa\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/calculations/daily-burden",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calculations", "daily-burden"]
+            },
+            "description": "Calculate only free pulsa tracking"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Daily Burden Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/calculations/burden-logs?sim_card_id={{sim_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "calculations", "burden-logs"],
+              "query": [
+                {
+                  "key": "sim_card_id",
+                  "value": "{{sim_id}}"
+                }
+              ]
+            },
+            "description": "Get calculation history logs"
+          },
+          "response": []
+        }
+      ],
+      "description": "Cost calculation endpoints"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "sim_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
