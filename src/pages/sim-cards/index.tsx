@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Plus, Search, Upload, Eye, PlayCircle, Package, CheckCircle2, XCircle, AlertTriangle, AlertCircle } from "lucide-react";
+import { Plus, Search, Upload, Eye, PlayCircle, Package, CheckCircle2, XCircle, AlertTriangle, AlertCircle, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { simService, formatDate, formatCurrency, getOverdueGracePeriodSims } from "@/services/simService";
 import { SimCard, SimStatus } from "@/lib/supabase";
@@ -96,6 +96,7 @@ export default function SimCardsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimStatus | "ALL">("ALL");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,6 +151,19 @@ export default function SimCardsPage() {
     purchase_date: "",
     billing_cycle_day: "",
     status: "WAREHOUSE" as SimStatus,
+    monthly_cost: "",
+    notes: ""
+  });
+
+  // Form State for Edit SIM
+  const [editFormData, setEditFormData] = useState({
+    id: "",
+    phone_number: "",
+    iccid: "",
+    provider: "",
+    plan_name: "",
+    purchase_date: "",
+    billing_cycle_day: "",
     monthly_cost: "",
     notes: ""
   });
@@ -222,7 +236,11 @@ export default function SimCardsPage() {
   const handleAddSimCard = async () => {
     try {
       if (!formData.phone_number || !formData.provider) {
-        alert("Nomor SIM Card dan Provider wajib diisi!");
+        toast({
+          title: "Error",
+          description: "Nomor SIM Card dan Provider wajib diisi!",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -256,9 +274,99 @@ export default function SimCardsPage() {
       await loadSimCards();
       setIsAddDialogOpen(false);
       resetForm();
+      toast({
+        title: "Success",
+        description: "SIM card berhasil ditambahkan!",
+        variant: "default"
+      });
     } catch (error: any) {
-      alert(error.message || "Error adding SIM card");
+      toast({
+        title: "Error",
+        description: error.message || "Error adding SIM card",
+        variant: "destructive"
+      });
     }
+  };
+
+  const handleEditSimCard = async () => {
+    try {
+      if (!editFormData.phone_number || !editFormData.provider) {
+        toast({
+          title: "Error",
+          description: "Nomor SIM Card dan Provider wajib diisi!",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+
+      const updates = {
+        phone_number: editFormData.phone_number,
+        iccid: editFormData.iccid || null,
+        provider: editFormData.provider,
+        plan_name: editFormData.plan_name || null,
+        purchase_date: editFormData.purchase_date || null,
+        billing_cycle_day: editFormData.billing_cycle_day ? parseInt(editFormData.billing_cycle_day) : null,
+        monthly_cost: Number(editFormData.monthly_cost) || 0,
+        notes: editFormData.notes || null
+      };
+
+      await simService.updateSimCard(editFormData.id, updates);
+      await loadSimCards();
+      setIsEditDialogOpen(false);
+      resetEditForm();
+      toast({
+        title: "Success",
+        description: "SIM card berhasil diupdate!",
+        variant: "default"
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error updating SIM card",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSimCard = async (sim: SimCard) => {
+    if (!confirm(`Yakin ingin menghapus SIM card ${sim.phone_number}?\n\nPeringatan: Data akan dihapus permanen!`)) {
+      return;
+    }
+
+    try {
+      await simService.deleteSimCard(sim.id);
+      await loadSimCards();
+      toast({
+        title: "Success",
+        description: "SIM card berhasil dihapus!",
+        variant: "default"
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Error deleting SIM card",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const openEditDialog = (sim: SimCard) => {
+    setEditFormData({
+      id: sim.id,
+      phone_number: sim.phone_number,
+      iccid: sim.iccid || "",
+      provider: sim.provider,
+      plan_name: sim.plan_name || "",
+      purchase_date: sim.purchase_date || "",
+      billing_cycle_day: sim.billing_cycle_day?.toString() || "",
+      monthly_cost: sim.monthly_cost?.toString() || "",
+      notes: sim.notes || ""
+    });
+    setIsEditDialogOpen(true);
   };
 
   const resetForm = () => {
@@ -270,6 +378,20 @@ export default function SimCardsPage() {
       purchase_date: "",
       billing_cycle_day: "",
       status: "WAREHOUSE",
+      monthly_cost: "",
+      notes: ""
+    });
+  };
+
+  const resetEditForm = () => {
+    setEditFormData({
+      id: "",
+      phone_number: "",
+      iccid: "",
+      provider: "",
+      plan_name: "",
+      purchase_date: "",
+      billing_cycle_day: "",
       monthly_cost: "",
       notes: ""
     });
@@ -873,6 +995,26 @@ export default function SimCardsPage() {
                         </Link>
                       </Button>
                       
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="text-blue-600 hover:text-blue-700"
+                        onClick={() => openEditDialog(sim)}
+                        title="Edit"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        className="text-red-600 hover:text-red-700"
+                        onClick={() => handleDeleteSimCard(sim)}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      
                       {sim.status === "WAREHOUSE" && (
                         <Button 
                           variant="ghost" 
@@ -936,7 +1078,11 @@ export default function SimCardsPage() {
                                 });
                                 loadSimCards();
                               } catch (error: any) {
-                                alert(error.message || "Error deactivating SIM");
+                                toast({
+                                  title: "Error",
+                                  description: error.message || "Error deactivating SIM",
+                                  variant: "destructive"
+                                });
                               }
                             }
                           }}
@@ -1137,6 +1283,132 @@ export default function SimCardsPage() {
           </div>
           <DialogFooter>
             <Button onClick={handleAddSimCard}>Save changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit SIM Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit SIM Card</DialogTitle>
+            <DialogDescription>
+              Update the details of the SIM card.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-phone" className="text-right">
+                Phone Number
+              </Label>
+              <div className="col-span-3 space-y-1">
+                <Input
+                  id="edit-phone"
+                  value={editFormData.phone_number}
+                  onChange={(e) => {
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setEditFormData({ ...editFormData, phone_number: formatted });
+                  }}
+                  placeholder="081234567890"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Format: 081234567890 atau 628123456789 (akan dikonversi otomatis)
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-iccid" className="text-right">
+                ICCID
+              </Label>
+              <Input
+                id="edit-iccid"
+                value={editFormData.iccid}
+                onChange={(e) => setEditFormData({ ...editFormData, iccid: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-provider" className="text-right">
+                Provider
+              </Label>
+              <Input
+                id="edit-provider"
+                value={editFormData.provider}
+                onChange={(e) => setEditFormData({ ...editFormData, provider: e.target.value })}
+                className="col-span-3"
+                placeholder="Telkomsel"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-plan" className="text-right">
+                Plan Name
+              </Label>
+              <Input
+                id="edit-plan"
+                value={editFormData.plan_name}
+                onChange={(e) => setEditFormData({ ...editFormData, plan_name: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-purchase-date" className="text-right">
+                Tanggal Pembelian
+              </Label>
+              <Input
+                id="edit-purchase-date"
+                type="date"
+                value={editFormData.purchase_date}
+                onChange={(e) => setEditFormData({ ...editFormData, purchase_date: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-billing-cycle" className="text-right">
+                Billing Cycle Day
+              </Label>
+              <Input
+                id="edit-billing-cycle"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="1-31"
+                value={editFormData.billing_cycle_day}
+                onChange={(e) => setEditFormData({ ...editFormData, billing_cycle_day: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-cost" className="text-right">
+                Monthly Cost
+              </Label>
+              <Input
+                id="edit-cost"
+                type="number"
+                value={editFormData.monthly_cost}
+                onChange={(e) => setEditFormData({ ...editFormData, monthly_cost: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-notes" className="text-right">
+                Notes
+              </Label>
+              <Input
+                id="edit-notes"
+                value={editFormData.notes}
+                onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                className="col-span-3"
+                placeholder="Optional notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditSimCard} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
