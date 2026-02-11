@@ -719,5 +719,24 @@ export const simService = {
       activation_date: activationDate,
       is_reactivated: isReactivation
     });
+  },
+
+  async deleteSimCard(id: string): Promise<void> {
+    try {
+      if (isSupabaseConnected()) {
+        const { error } = await supabase.from('sim_cards').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        const simsData = getLocalStorage(STORAGE_KEYS.SIMS);
+        if (!simsData) return;
+        
+        const sims: SimCard[] = JSON.parse(simsData);
+        const newSims = sims.filter(s => s.id !== id);
+        
+        setLocalStorage(STORAGE_KEYS.SIMS, JSON.stringify(newSims));
+      }
+    } catch (error) {
+      throw error;
+    }
   }
 };
