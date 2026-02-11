@@ -107,6 +107,19 @@ export default function SimCardsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
+  // Bulk Delete State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [bulkDeleteFilters, setBulkDeleteFilters] = useState({
+    provider: "ALL",
+    status: "ALL" as SimStatus | "ALL",
+    minCost: "",
+    maxCost: "",
+    dateType: "ALL" as "ALL" | "purchase" | "activation" | "installation" | "grace_period",
+    dateFrom: "",
+    dateTo: ""
+  });
+
   // Action Dialog State
   const [actionDialog, setActionDialog] = useState<{
     isOpen: boolean;
@@ -396,6 +409,193 @@ export default function SimCardsPage() {
       notes: ""
     });
   };
+
+  // Bulk Delete Functions
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginatedSims.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(paginatedSims.map(sim => sim.id)));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const getFilteredSimsForBulkDelete = () => {
+    let filtered = simCards;
+
+    // Provider filter
+    if (bulkDeleteFilters.provider !== "ALL") {
+      filtered = filtered.filter(sim => sim.provider === bulkDeleteFilters.provider);
+    }
+
+    // Status filter
+    if (bulkDeleteFilters.status !== "ALL") {
+      filtered = filtered.filter(sim => sim.status === bulkDeleteFilters.status);
+    }
+
+    // Cost filter
+    if (bulkDeleteFilters.minCost) {
+      const minCost = parseFloat(bulkDeleteFilters.minCost);
+      filtered = filtered.filter(sim => (sim.monthly_cost || 0) >= minCost);
+    }
+    if (bulkDeleteFilters.maxCost) {
+      const maxCost = parseFloat(bulkDeleteFilters.maxCost);
+      filtered = filtered.filter(sim => (sim.monthly_cost || 0) <= maxCost);
+    }
+
+    // Date filter
+    if (bulkDeleteFilters.dateType !== "ALL" && bulkDeleteFilters.dateFrom && bulkDeleteFilters.dateTo) {
+      const fromDate = new Date(bulkDeleteFilters.dateFrom);
+      const toDate = new Date(bulkDeleteFilters.dateTo);
+      
+      filtered = filtered.filter(sim => {
+        let dateToCheck: string | null = null;
+        
+        switch (bulkDeleteFilters.dateType) {
+          case "purchase":
+            dateToCheck = sim.purchase_date;
+            break;
+          case "activation":
+            dateToCheck = sim.activation_date;
+            break;
+          case "installation":
+            dateToCheck = sim.installation_date;
+            break;
+          case "grace_period":
+            dateToCheck = sim.grace_period_start_date;
+            break;
+        }
+        
+        if (!dateToCheck) return false;
+        const simDate = new Date(dateToCheck);
+        return simDate >= fromDate && simDate <= toDate;
+      });
+    }
+
+    return filtered;
+  };
+
+  const handleBulkDeleteByFilter = async () => {
+    const simsToDelete = getFilteredSimsForBulkDelete();
+    
+    if (simsToDelete.length === 0) {
+      toast({
+        title: "No SIM Cards Found",
+        description: "No SIM cards match the selected filters.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!confirm(`⚠️ WARNING: This will permanently delete ${simsToDelete.length} SIM card(s)!\n\nAre you absolutely sure?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const sim of simsToDelete) {
+        try {
+          await simService.deleteSimCard(sim.id);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          console.error(`Failed to delete SIM ${sim.phone_number}:`, error);
+        }
+      }
+
+      await loadSimCards();
+      setIsBulkDeleteDialogOpen(false);
+      setBulkDeleteFilters({
+        provider: "ALL",
+        status: "ALL",
+        minCost: "",
+        maxCost: "",
+        dateType: "ALL",
+        dateFrom: "",
+        dateTo: ""
+      });
+
+      toast({
+        title: "Bulk Delete Complete",
+        description: `Successfully deleted ${successCount} SIM card(s). ${errorCount > 0 ? `Failed: ${errorCount}` : ''}`,
+        variant: successCount > 0 ? "default" : "destructive"
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete bulk delete",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select SIM cards to delete.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!confirm(`⚠️ WARNING: This will permanently delete ${selectedIds.size} selected SIM card(s)!\n\nAre you absolutely sure?`)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const id of Array.from(selectedIds)) {
+        try {
+          await simService.deleteSimCard(id);
+          successCount++;
+        } catch (error) {
+          errorCount++;
+          console.error(`Failed to delete SIM ${id}:`, error);
+        }
+      }
+
+      await loadSimCards();
+      setSelectedIds(new Set());
+
+      toast({
+        title: "Bulk Delete Complete",
+        description: `Successfully deleted ${successCount} SIM card(s). ${errorCount > 0 ? `Failed: ${errorCount}` : ''}`,
+        variant: successCount > 0 ? "default" : "destructive"
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to complete bulk delete",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Get unique providers for filter
+  const uniqueProviders = useMemo(() => {
+    const providers = new Set(simCards.map(sim => sim.provider));
+    return Array.from(providers).sort();
+  }, [simCards]);
 
   const closeActionDialog = () => {
     setActionDialog({
@@ -803,6 +1003,22 @@ export default function SimCardsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Management SIM Cards</h1>
         <div className="flex gap-2">
+          {selectedIds.size > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDeleteSelected}
+              disabled={isSubmitting}
+            >
+              <Trash2 className="mr-2 h-4 w-4" /> 
+              Delete Selected ({selectedIds.size})
+            </Button>
+          )}
+          <Button 
+            variant="outline" 
+            onClick={() => setIsBulkDeleteDialogOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Bulk Delete by Filter
+          </Button>
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
             <Upload className="mr-2 h-4 w-4" /> Import Excel
           </Button>
@@ -916,6 +1132,14 @@ export default function SimCardsPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === paginatedSims.length && paginatedSims.length > 0}
+                  onChange={toggleSelectAll}
+                  className="cursor-pointer"
+                />
+              </TableHead>
               <TableHead>Phone Number</TableHead>
               <TableHead>Provider</TableHead>
               <TableHead>Status</TableHead>
@@ -928,13 +1152,21 @@ export default function SimCardsPage() {
           <TableBody>
             {paginatedSims.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                   No SIM cards found
                 </TableCell>
               </TableRow>
             ) : (
               paginatedSims.map((sim) => (
                 <TableRow key={sim.id}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(sim.id)}
+                      onChange={() => toggleSelectOne(sim.id)}
+                      className="cursor-pointer"
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <Link href={`/sim-cards/${sim.id}`} className="hover:underline flex flex-col">
                       <span>{sim.phone_number}</span>
@@ -1512,7 +1744,7 @@ export default function SimCardsPage() {
                     Billing Cycle Day: <strong>{actionDialog.sim?.billing_cycle_day || "N/A"}</strong>
                   </AlertDescription>
                 </Alert>
-                <div className="grid gap-2">
+                <div className="space-y-2">
                   <Label>Tanggal Masuk Grace Period (Otomatis)</Label>
                   <div className="p-2 border rounded bg-muted text-sm text-muted-foreground">
                     Sesuai tanggal tagihan (Billing Cycle Day) pada bulan ini/lalu
@@ -1606,6 +1838,158 @@ export default function SimCardsPage() {
             { field: "Notes", description: "Catatan tambahan.", validation: "Teks bebas." }
         ]}
       />
+
+      {/* Bulk Delete by Filter Dialog */}
+      <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Bulk Delete by Filter</DialogTitle>
+            <DialogDescription>
+              Set filters to select which SIM cards to delete. All matching cards will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            {/* Provider Filter */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bulk-provider" className="text-right">
+                Provider
+              </Label>
+              <Select
+                value={bulkDeleteFilters.provider}
+                onValueChange={(value) => setBulkDeleteFilters({ ...bulkDeleteFilters, provider: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="All Providers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Providers</SelectItem>
+                  {uniqueProviders.map(provider => (
+                    <SelectItem key={provider} value={provider}>{provider}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bulk-status" className="text-right">
+                Status
+              </Label>
+              <Select
+                value={bulkDeleteFilters.status}
+                onValueChange={(value) => setBulkDeleteFilters({ ...bulkDeleteFilters, status: value as SimStatus | "ALL" })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Status</SelectItem>
+                  <SelectItem value="WAREHOUSE">Warehouse</SelectItem>
+                  <SelectItem value="ACTIVATED">Activated</SelectItem>
+                  <SelectItem value="INSTALLED">Installed</SelectItem>
+                  <SelectItem value="GRACE_PERIOD">Grace Period</SelectItem>
+                  <SelectItem value="DEACTIVATED">Deactivated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Cost Range Filter */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">
+                Cost Range
+              </Label>
+              <div className="col-span-3 flex gap-2 items-center">
+                <Input
+                  type="number"
+                  placeholder="Min"
+                  value={bulkDeleteFilters.minCost}
+                  onChange={(e) => setBulkDeleteFilters({ ...bulkDeleteFilters, minCost: e.target.value })}
+                />
+                <span>-</span>
+                <Input
+                  type="number"
+                  placeholder="Max"
+                  value={bulkDeleteFilters.maxCost}
+                  onChange={(e) => setBulkDeleteFilters({ ...bulkDeleteFilters, maxCost: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Date Type Filter */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bulk-date-type" className="text-right">
+                Date Type
+              </Label>
+              <Select
+                value={bulkDeleteFilters.dateType}
+                onValueChange={(value) => setBulkDeleteFilters({ ...bulkDeleteFilters, dateType: value as any })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select Date Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Dates</SelectItem>
+                  <SelectItem value="purchase">Purchase Date</SelectItem>
+                  <SelectItem value="activation">Activation Date</SelectItem>
+                  <SelectItem value="installation">Installation Date</SelectItem>
+                  <SelectItem value="grace_period">Grace Period Start</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Date Range Filter */}
+            {bulkDeleteFilters.dateType !== "ALL" && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">
+                  Date Range
+                </Label>
+                <div className="col-span-3 flex gap-2 items-center">
+                  <Input
+                    type="date"
+                    value={bulkDeleteFilters.dateFrom}
+                    onChange={(e) => setBulkDeleteFilters({ ...bulkDeleteFilters, dateFrom: e.target.value })}
+                  />
+                  <span>to</span>
+                  <Input
+                    type="date"
+                    value={bulkDeleteFilters.dateTo}
+                    onChange={(e) => setBulkDeleteFilters({ ...bulkDeleteFilters, dateTo: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Preview Count */}
+            <div className="border-t pt-4">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Warning</AlertTitle>
+                <AlertDescription>
+                  <strong>{getFilteredSimsForBulkDelete().length} SIM card(s)</strong> will be permanently deleted based on current filters.
+                </AlertDescription>
+              </Alert>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsBulkDeleteDialogOpen(false)}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleBulkDeleteByFilter}
+              disabled={isSubmitting || getFilteredSimsForBulkDelete().length === 0}
+            >
+              {isSubmitting ? "Deleting..." : `Delete ${getFilteredSimsForBulkDelete().length} SIM(s)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
