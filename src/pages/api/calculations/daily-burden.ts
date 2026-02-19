@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { simService, calculateDailyBurden, calculateGracePeriodCost, calculateFreePulsaCost } from "@/services/simService";
+import { withApiGate } from "@/lib/apiGate";
+import { withAuth } from "@/lib/withAuth";
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
@@ -70,3 +72,5 @@ export default async function handler(
     });
   }
 }
+
+export default withApiGate("calculations.burden", withAuth()(handler));

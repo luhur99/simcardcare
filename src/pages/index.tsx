@@ -37,16 +37,22 @@ export default function Home() {
 
   const loadSimCards = async () => {
     try {
-      const { data, error } = await supabase
-        .from("sim_cards")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (data) {
-        setSimCards(data);
+      const PAGE_SIZE = 1000;
+      let all: SimCard[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("sim_cards")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
       }
+      setSimCards(all);
     } catch (err) {
       console.error("Error loading SIM cards:", err);
     } finally {

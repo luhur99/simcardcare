@@ -2,14 +2,16 @@ import { ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { ThemeSwitch } from "./ThemeSwitch";
-import { 
-  CreditCard, 
-  Users, 
-  History, 
+import {
+  CreditCard,
+  Users,
+  History,
   Menu,
   TrendingDown,
   Home,
-  Building2
+  Building2,
+  Shield,
+  LogOut,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
@@ -25,6 +27,7 @@ import {
   SidebarMenuButton,
   SidebarProvider,
 } from "./ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -34,20 +37,34 @@ interface LayoutProps {
 export function Layout({ children, title }: LayoutProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const { profile, role, signOut } = useAuth();
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const navigation = [
-    { name: "Dashboard", href: "/", icon: Home },
-    { name: "SIM Cards", href: "/sim-cards", icon: CreditCard },
-    { name: "Executive Summary", href: "/executive-summary", icon: TrendingDown },
-    { name: "Providers", href: "/providers", icon: Building2 },
-    { name: "Devices", href: "/devices", icon: Building2 },
-    { name: "Customers", href: "/customers", icon: Users },
-    { name: "History", href: "/history", icon: History },
+    { name: "Dashboard",          href: "/",                 icon: Home },
+    { name: "SIM Cards",          href: "/sim-cards",        icon: CreditCard },
+    { name: "Executive Summary",  href: "/executive-summary",icon: TrendingDown },
+    { name: "Providers",          href: "/providers",        icon: Building2 },
+    { name: "Devices",            href: "/devices",          icon: Building2 },
+    { name: "Customers",          href: "/customers",        icon: Users },
+    { name: "History",            href: "/history",          icon: History },
+    // Admin-only
+    ...(role === "admin"
+      ? [{ name: "User Management", href: "/users", icon: Shield }]
+      : []),
   ];
+
+  async function handleSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
+
+  const userInitials = profile?.full_name
+    ? profile.full_name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+    : (profile?.email?.[0] ?? "?").toUpperCase();
 
   return (
     <SidebarProvider>
@@ -93,8 +110,33 @@ export function Layout({ children, title }: LayoutProps) {
 
             <SidebarFooter>
               <SidebarMenu>
+                {/* User info + logout */}
+                {profile && (
+                  <SidebarMenuItem>
+                    <div className="flex items-center gap-2 px-2 py-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold shrink-0">
+                        {userInitials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {profile.full_name ?? profile.email}
+                        </p>
+                        <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 h-7 w-7"
+                        onClick={handleSignOut}
+                        title="Sign out"
+                      >
+                        <LogOut className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
-                  <div className="px-2 py-2">
+                  <div className="px-2 py-1">
                     <ThemeSwitch />
                   </div>
                 </SidebarMenuItem>
@@ -127,7 +169,29 @@ export function Layout({ children, title }: LayoutProps) {
                       ))}
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-border">
+                    <div className="mt-6 pt-4 border-t border-border space-y-3">
+                      {profile && (
+                        <div className="flex items-center gap-2 px-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-semibold">
+                            {userInitials}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {profile.full_name ?? profile.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground capitalize">{profile.role}</p>
+                          </div>
+                        </div>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={handleSignOut}
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                      </Button>
                       <ThemeSwitch />
                     </div>
                   </SheetContent>

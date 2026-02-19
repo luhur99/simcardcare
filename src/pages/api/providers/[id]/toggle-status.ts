@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { providerService } from "@/services/providerService";
+import { withApiGate } from "@/lib/apiGate";
+import { withAuth } from "@/lib/withAuth";
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
@@ -37,3 +39,5 @@ export default async function handler(
     });
   }
 }
+
+export default withApiGate("providers.toggle", withAuth()(handler));

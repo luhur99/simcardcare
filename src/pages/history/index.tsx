@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { SEO } from "@/components/SEO";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Download, Search, ArrowRight, Calendar, Filter } from "lucide-react";
 import { supabase, isSupabaseConnected } from "@/lib/supabase";
 import type { StatusHistory, SimStatus } from "@/lib/supabase";
@@ -18,6 +26,8 @@ export default function HistoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimStatus | "ALL">("ALL");
   const [dateFilter, setDateFilter] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   // Status labels and colors
   const statusLabels: Record<SimStatus, string> = {
@@ -43,29 +53,40 @@ export default function HistoryPage() {
     loadHistory();
   }, []);
 
-  // Apply filters
+  // Apply filters — reset to page 1 when filters change
   useEffect(() => {
     applyFilters();
+    setCurrentPage(1);
   }, [history, searchTerm, statusFilter, dateFilter]);
 
   const loadHistory = async () => {
     setLoading(true);
     try {
       if (isSupabaseConnected()) {
-        const { data, error } = await supabase
-          .from("status_history")
-          .select(`
-            *,
-            sim_cards (
-              iccid,
-              phone_number,
-              provider
-            )
-          `)
-          .order("changed_at", { ascending: false });
-
-        if (error) throw error;
-        setHistory(data || []);
+        // Paginate to bypass Supabase 1000-row default limit
+        const PAGE_SIZE = 1000;
+        let all: StatusHistory[] = [];
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("status_history")
+            .select(`
+              *,
+              sim_cards (
+                iccid,
+                phone_number,
+                provider
+              )
+            `)
+            .order("changed_at", { ascending: false })
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          all = all.concat(data as StatusHistory[]);
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+        }
+        setHistory(all);
       } else {
         // Mock data for development
         const mockHistory: StatusHistory[] = [
@@ -165,6 +186,12 @@ export default function HistoryPage() {
       minute: "2-digit"
     }).format(date);
   };
+
+  const totalPages = Math.ceil(filteredHistory.length / ITEMS_PER_PAGE);
+  const paginatedHistory = filteredHistory.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const exportToCSV = () => {
     const headers = [
@@ -288,7 +315,7 @@ export default function HistoryPage() {
 
             {/* Results count */}
             <div className="mt-4 text-sm text-muted-foreground">
-              Showing {filteredHistory.length} of {history.length} records
+              Showing {filteredHistory.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredHistory.length)} of {filteredHistory.length} records (total: {history.length})
             </div>
           </CardContent>
         </Card>
@@ -330,7 +357,7 @@ export default function HistoryPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredHistory.map((record) => (
+                    {paginatedHistory.map((record) => (
                       <TableRow key={record.id}>
                         <TableCell className="font-mono text-sm">
                           {formatDate(record.changed_at)}
@@ -376,6 +403,53 @@ export default function HistoryPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="mt-4">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+
+                    {[...Array(Math.min(5, totalPages))].map((_, idx) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = idx + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = idx + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + idx;
+                      } else {
+                        pageNum = currentPage - 2 + idx;
+                      }
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(pageNum)}
+                            isActive={currentPage === pageNum}
+                            className="cursor-pointer"
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    })}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
               </div>
             )}
           </CardContent>
